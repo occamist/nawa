@@ -1,0 +1,493 @@
+---
+import AppLayout from "@layouts/AppLayout.astro";
+---
+
+<AppLayout title="Logs">
+    <main class="page">
+        <div class="page__header">
+            <a href="/containers" class="back-link">← Containers</a>
+            <h1 id="logs-heading">Logs</h1>
+            <span
+                id="status-badge"
+                class="stream-status stream-status--connecting"
+                >Connecting…</span
+            >
+            <div class="header-right">
+                <label for="tail-select" class="tail-label">Lines</label>
+                <select id="tail-select" class="tail-select">
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100" selected>100</option>
+                    <option value="200">200</option>
+                    <option value="500">500</option>
+                    <option value="all">All</option>
+                </select>
+                <span id="line-count" class="line-count"></span>
+            </div>
+        </div>
+
+        <div class="log-viewer-wrap">
+            <div
+                class="log-viewer"
+                id="log-viewer"
+                aria-live="polite"
+                aria-label="Container log output"
+            >
+            </div>
+            <button id="scroll-btn" class="scroll-btn" style="display:none"
+                >↓ Jump to bottom</button
+            >
+        </div>
+    </main>
+</AppLayout>
+
+<script>
+    import { isAuthenticated, clearAuth } from "../../stores/auth";
+    import { RouteV1 } from "@libs/route";
+
+    if (!isAuthenticated.get()) window.location.href = "/";
+
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id") ?? "";
+    const containerName = params.get("name") ?? id.slice(0, 12);
+
+    if (!id) window.location.href = "/containers";
+
+    const viewer = document.getElementById("log-viewer")!;
+    const badge = document.getElementById("status-badge")!;
+    const lineCount = document.getElementById("line-count")!;
+    const scrollBtn = document.getElementById("scroll-btn")!;
+    const tailSelect = document.getElementById(
+        "tail-select",
+    ) as HTMLSelectElement;
+
+    document.getElementById("logs-heading")!.textContent =
+        `Logs @ ${containerName}`;
+
+    let autoScroll = true;
+    let lineNum = 0;
+    let es: EventSource | null = null;
+    // Lines from the EventSource are queued here instead of being written to the
+    // DOM immediately. flush() drains the queue in fixed-size batches, one batch
+    // per animation frame, so the main thread stays free between batches and the
+    // UI (dropdowns, scroll, buttons) remains responsive even for 50k+ line logs.
+    let queue: string[] = [];
+    let flushing = false;
+
+    const ANSI_RE = /\x1b\[[0-9;]*m/g;
+    const TS_RE =
+        /^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s*/;
+    const LEVEL_RE =
+        /\b(ERROR|FATAL|CRITICAL|WARN(?:ING)?|INFO|DEBUG|TRACE|NOTICE|SUCCESS)\b/;
+
+    const nameColor = "#2b89ff";
+
+    type Level = "error" | "warn" | "info" | "debug" | "trace" | "success";
+
+    function detectLevel(text: string): Level | null {
+        // Try JSON level field first
+        const jsonStart = text.indexOf("{");
+        if (jsonStart !== -1) {
+            try {
+                const obj = JSON.parse(text.slice(jsonStart));
+                const lvl = String(
+                    obj.level ?? obj.severity ?? obj.lvl ?? "",
+                ).toLowerCase();
+                if (["error", "fatal", "critical"].includes(lvl))
+                    return "error";
+                if (["warn", "warning"].includes(lvl)) return "warn";
+                if (lvl === "info") return "info";
+                if (lvl === "debug") return "debug";
+                if (lvl === "trace") return "trace";
+                if (["success", "notice"].includes(lvl)) return "success";
+            } catch {}
+        }
+        // Fall back to keyword scan
+        const m = LEVEL_RE.exec(text);
+        if (!m) return null;
+        const kw = m[1].toUpperCase();
+        if (["ERROR", "FATAL", "CRITICAL"].includes(kw)) return "error";
+        if (["WARN", "WARNING"].includes(kw)) return "warn";
+        if (kw === "INFO") return "info";
+        if (kw === "DEBUG") return "debug";
+        if (kw === "TRACE") return "trace";
+        return "success";
+    }
+
+    function flush() {
+        // Process at most BATCH lines per frame to avoid blocking the main thread.
+        const BATCH = 500;
+        const batch = queue.splice(0, BATCH);
+        // DocumentFragment accumulates all new rows off-screen, then appends them
+        // in a single operation — one reflow instead of one per line.
+        const fragment = document.createDocumentFragment();
+        for (const raw of batch) {
+            const text = raw.replace(ANSI_RE, "");
+            lineNum++;
+            let rest = text;
+            const tsPrefix = TS_RE.exec(rest);
+            if (tsPrefix) rest = rest.slice(tsPrefix[0].length);
+            const level = detectLevel(rest);
+            const row = document.createElement("span");
+            row.className =
+                "log-viewer__line" + (level ? ` log-line--${level}` : "");
+            const num = document.createElement("span");
+            num.className = "log-line__num";
+            num.textContent = String(lineNum);
+            row.appendChild(num);
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "log-line__name";
+            nameSpan.textContent = containerName;
+            nameSpan.style.color = nameColor;
+            row.appendChild(nameSpan);
+            const sep = document.createElement("span");
+            sep.className = "log-line__sep";
+            sep.textContent = "│";
+            row.appendChild(sep);
+            const content = document.createElement("span");
+            content.className = "log-line__content";
+            if (level && rest.trimStart().indexOf("{") !== 0) {
+                const lvlMatch = LEVEL_RE.exec(rest);
+                if (lvlMatch) {
+                    if (lvlMatch.index > 0)
+                        content.appendChild(
+                            document.createTextNode(
+                                rest.slice(0, lvlMatch.index),
+                            ),
+                        );
+                    const pill = document.createElement("span");
+                    pill.className = `log-level log-level--${level}`;
+                    pill.textContent = lvlMatch[0];
+                    content.appendChild(pill);
+                    content.appendChild(
+                        document.createTextNode(
+                            rest.slice(lvlMatch.index + lvlMatch[0].length),
+                        ),
+                    );
+                } else {
+                    content.appendChild(document.createTextNode(rest));
+                }
+            } else {
+                content.appendChild(document.createTextNode(rest));
+            }
+            row.appendChild(content);
+            fragment.appendChild(row);
+        }
+        viewer.appendChild(fragment);
+        lineCount.textContent = `${lineNum} line${lineNum === 1 ? "" : "s"}`;
+        if (autoScroll) viewer.scrollTop = viewer.scrollHeight;
+
+        // If lines are still queued, schedule another flush next frame.
+        // Otherwise mark as idle so the next appendLine restarts the cycle.
+        if (queue.length > 0) {
+            requestAnimationFrame(flush);
+        } else {
+            flushing = false;
+        }
+    }
+
+    function appendLine(raw: string) {
+        queue.push(raw);
+        // Only kick off the flush loop if it isn't already running.
+        if (!flushing) {
+            flushing = true;
+            requestAnimationFrame(flush);
+        }
+    }
+
+    function setStatus(label: string, mod: string) {
+        badge.textContent = label;
+        badge.className = `stream-status stream-status--${mod}`;
+    }
+
+    viewer.addEventListener("scroll", () => {
+        autoScroll =
+            viewer.scrollHeight - viewer.scrollTop - viewer.clientHeight < 40;
+        scrollBtn.style.display = autoScroll ? "none" : "flex";
+    });
+
+    scrollBtn.addEventListener("click", () => {
+        viewer.scrollTop = viewer.scrollHeight;
+        autoScroll = true;
+        scrollBtn.style.display = "none";
+    });
+
+    async function connect() {
+        es?.close();
+        setStatus("Connecting…", "connecting");
+
+        const probe = await fetch(RouteV1.Containers, {
+            credentials: "include",
+        });
+        if (probe.status === 401) {
+            clearAuth();
+            window.location.href = "/";
+            return;
+        }
+
+        const tail = tailSelect.value;
+        es = new EventSource(`${RouteV1.Containers}/${id}/logs?tail=${tail}`, {
+            withCredentials: true,
+        });
+
+        es.onopen = () => setStatus("Live", "live");
+        es.onmessage = (e) => appendLine(e.data);
+        es.onerror = () => {
+            setStatus("Disconnected", "disconnected");
+            es?.close();
+        };
+    }
+
+    tailSelect.addEventListener("change", () => {
+        queue = [];
+        flushing = false;
+        viewer.innerHTML = "";
+        lineNum = 0;
+        lineCount.textContent = "";
+        connect();
+    });
+
+    connect();
+
+    window.addEventListener("beforeunload", () => es?.close());
+</script>
+
+<style is:global lang="scss">
+    // ── Log viewer ───────────────────────────────────────────────────────────────
+    // All child elements are runtime-created via document.createElement() —
+    // Astro cannot stamp them at build time, so is:global is required.
+    .log-viewer {
+        background: var(--color-bg-deep);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-card);
+        padding: 0;
+        font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #c9d1d9;
+        overflow-y: auto;
+        max-height: calc(100vh - 240px);
+        white-space: pre-wrap;
+        word-break: break-all;
+
+        &__line {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            padding: 2px 16px 2px 0;
+            border-left: 2px solid transparent;
+            &:hover {
+                background: rgba(255, 255, 255, 0.03);
+            }
+        }
+
+        &__empty {
+            padding: 48px 20px;
+            text-align: center;
+            color: var(--color-text-helper);
+            font-family: var(--font-system);
+            font-size: 13px;
+        }
+    }
+
+    .log-line {
+        &--error {
+            color: #f07878;
+            border-left-color: rgba(229, 115, 115, 0.65) !important;
+            background: rgba(229, 115, 115, 0.04);
+        }
+        &--warn {
+            color: #f0a848;
+            border-left-color: rgba(232, 146, 42, 0.55) !important;
+            background: rgba(232, 146, 42, 0.03);
+        }
+        &--info {
+            color: #c9d1d9;
+            border-left-color: rgba(43, 137, 255, 0.35) !important;
+        }
+        &--debug {
+            color: #7a8090;
+            border-left-color: rgba(101, 106, 118, 0.3) !important;
+        }
+        &--trace {
+            color: #50545e;
+            border-left-color: rgba(74, 79, 90, 0.25) !important;
+        }
+        &--success {
+            color: #1ed8dc;
+            border-left-color: rgba(20, 198, 203, 0.55) !important;
+            background: rgba(20, 198, 203, 0.03);
+        }
+    }
+
+    .log-line__num {
+        font-size: 11px;
+        color: #2e3240;
+        user-select: none;
+        min-width: 44px;
+        text-align: right;
+        flex-shrink: 0;
+        padding-left: 12px;
+    }
+
+    .log-line__name {
+        flex-shrink: 0;
+        font-weight: 600;
+        font-size: 12px;
+    }
+
+    .log-line__sep {
+        color: #2e3240;
+        flex-shrink: 0;
+        user-select: none;
+    }
+
+    .log-line__content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .log-ts {
+        color: #3d4255;
+        margin-right: 6px;
+    }
+
+    .log-level {
+        display: inline-block;
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        padding: 0 5px;
+        border-radius: 3px;
+        margin-right: 6px;
+        vertical-align: baseline;
+
+        &--error {
+            color: #ff7070;
+            background: rgba(229, 115, 115, 0.15);
+        }
+        &--warn {
+            color: #ffa348;
+            background: rgba(232, 146, 42, 0.15);
+        }
+        &--info {
+            color: #5aa3ff;
+            background: rgba(43, 137, 255, 0.12);
+        }
+        &--debug {
+            color: #7a8090;
+            background: rgba(101, 106, 118, 0.14);
+        }
+        &--trace {
+            color: #50545e;
+            background: rgba(74, 79, 90, 0.14);
+        }
+        &--success {
+            color: #20d5da;
+            background: rgba(20, 198, 203, 0.12);
+        }
+    }
+</style>
+
+<style lang="scss">
+    .back-link {
+        font-size: 13px;
+        color: var(--color-text-helper);
+        text-decoration: none;
+        &:hover {
+            color: var(--color-text);
+            text-decoration: none;
+        }
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-left: auto;
+    }
+
+    .tail-label {
+        font-size: 12px;
+        color: var(--color-text-helper);
+        user-select: none;
+    }
+
+    .tail-select {
+        background: var(--color-bg-deep);
+        color: var(--color-text-muted);
+        border: 1px solid var(--color-border-input);
+        border-radius: var(--radius-md);
+        padding: 3px 8px;
+        font-size: 13px;
+        font-family: var(--font-system);
+        cursor: pointer;
+        outline: none;
+
+        &:focus {
+            border-color: var(--color-action);
+        }
+    }
+
+    .line-count {
+        font-size: 12px;
+        color: var(--color-text-helper);
+    }
+
+    .stream-status {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        padding: 3px 8px;
+        border-radius: var(--radius-md);
+        border: 1px solid;
+
+        &--connecting {
+            color: #e8922a;
+            border-color: rgba(187, 90, 0, 0.4);
+            background: rgba(187, 90, 0, 0.1);
+        }
+        &--live {
+            color: #14c6cb;
+            border-color: rgba(20, 198, 203, 0.4);
+            background: rgba(20, 198, 203, 0.1);
+        }
+        &--disconnected {
+            color: #656a76;
+            border-color: rgba(101, 106, 118, 0.4);
+            background: rgba(101, 106, 118, 0.1);
+        }
+    }
+
+    .log-viewer-wrap {
+        position: relative;
+    }
+
+    .scroll-btn {
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: var(--font-system);
+        color: #c9d1d9;
+        background: #2a2f3c;
+        border: 1px solid rgba(178, 182, 189, 0.3);
+        border-radius: 20px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        transition:
+            background 0.15s,
+            color 0.15s;
+
+        &:hover {
+            background: #353b4a;
+            color: #fff;
+        }
+    }
+</style>

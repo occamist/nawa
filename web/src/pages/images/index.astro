@@ -1,0 +1,414 @@
+---
+import ConfirmModal from "@components/ConfirmModal.astro";
+import PageHeader from "@components/PageHeader.astro";
+import AppLayout from "@layouts/AppLayout.astro";
+---
+
+<AppLayout title="Images">
+    <main class="page">
+        <PageHeader title="Images" countId="image-count">
+            <button id="prune-btn" class="btn prune-btn"> Prune All </button>
+        </PageHeader>
+
+        <div class="pull-form card">
+            <h2 class="pull-form__title">Pull image</h2>
+            <form id="pull-form" novalidate>
+                <div class="pull-form__row">
+                    <div class="field pull-form__field">
+                        <label for="pull-image">Image</label>
+                        <input
+                            type="text"
+                            id="pull-image"
+                            placeholder="nginx"
+                            autocomplete="off"
+                            required
+                        />
+                    </div>
+                    <div class="field pull-form__field pull-form__field--sm">
+                        <label for="pull-tag">Tag</label>
+                        <input
+                            type="text"
+                            id="pull-tag"
+                            placeholder="latest"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        class="btn pull-form__btn"
+                        id="pull-btn">Pull</button
+                    >
+                </div>
+            </form>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Repository</th>
+                        <th>Tag</th>
+                        <th>ID</th>
+                        <th>Size</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="images-tbody">
+                    <tr><td colspan="6" class="loading-cell">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <ConfirmModal />
+</AppLayout>
+
+<script>
+    import { isAuthenticated, clearAuth } from "../../stores/auth";
+    import { toast } from "@libs/toast";
+    import { RouteV1 } from "@libs/route";
+
+    if (!isAuthenticated.get()) window.location.href = "/";
+
+    function formatSize(bytes: number): string {
+        if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+        if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+        return `${(bytes / 1e3).toFixed(0)} KB`;
+    }
+
+    function shortId(id: string): string {
+        return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
+    }
+
+    function escHtml(s: string): string {
+        return s
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    }
+
+    type Image = {
+        id: string;
+        repo_tags: string[];
+        size: number;
+        created: number;
+    };
+
+    async function fetchImages(): Promise<Image[]> {
+        const res = await fetch(RouteV1.Images, { credentials: "include" });
+        if (res.status === 401) {
+            clearAuth();
+            window.location.href = "/";
+            return [];
+        }
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    }
+
+    type Container = { image_id: string };
+
+    function stripSha256(id: string): string {
+        return id.startsWith("sha256:") ? id.slice(7) : id;
+    }
+
+    async function fetchUsedImageIDs(): Promise<Set<string>> {
+        const res = await fetch(RouteV1.Containers, {
+            credentials: "include",
+        });
+        if (!res.ok) return new Set();
+        const containers: Container[] = await res.json();
+        return new Set(containers.map((c) => stripSha256(c.image_id)));
+    }
+
+    async function removeImage(id: string) {
+        const res = await fetch(`${RouteV1.Images}/${encodeURIComponent(id)}`, {
+            method: "DELETE",
+            credentials: "include",
+        });
+        if (!res.ok) throw new Error(await res.text());
+    }
+
+    type PruneResult = { space_reclaimed: number };
+
+    async function pruneImages(): Promise<PruneResult> {
+        const res = await fetch(`${RouteV1.Images}/prune`, {
+            method: "POST",
+            credentials: "include",
+        });
+        if (res.status === 401) {
+            clearAuth();
+            window.location.href = "/";
+            throw new Error("unauthorized");
+        }
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    }
+
+    // Sentinel id used so the shared confirm modal can tell prune from a single remove.
+    const PRUNE_ID = "__prune__";
+    const pruneBtn = document.querySelector<HTMLButtonElement>("#prune-btn");
+    pruneBtn?.addEventListener("click", () => {
+        document.dispatchEvent(
+            new CustomEvent("modal:open", {
+                detail: {
+                    id: PRUNE_ID,
+                    title: "Prune all images?",
+                    confirmLabel: "Prune",
+                    message:
+                        "All images not used by a container will be removed. This action cannot be undone.",
+                },
+            }),
+        );
+    });
+
+    document.addEventListener("modal:confirm", async (e: Event) => {
+        const { id } = (e as CustomEvent<{ id: string }>).detail;
+        try {
+            if (id === PRUNE_ID) {
+                pruneBtn && (pruneBtn.disabled = true);
+                pruneBtn && (pruneBtn.textContent = "Pruning…");
+
+                try {
+                    const { space_reclaimed } = await pruneImages();
+                    toast.success(
+                        `Pruned unused images, reclaimed ${formatSize(space_reclaimed)}`,
+                    );
+                } finally {
+                    pruneBtn && (pruneBtn.disabled = false);
+                    pruneBtn && (pruneBtn.textContent = "Prune All");
+                }
+            } else {
+                const btnEl = document.querySelector<HTMLButtonElement>(
+                    `.remove-btn[data-id="${id}"]`,
+                );
+                const label = btnEl?.dataset.label ?? shortId(id);
+                await removeImage(id);
+                toast.success(`${label} removed successfully`);
+            }
+            await load();
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    });
+
+    // ── Render ─────────────────────────────────────────────────────────────────
+    function renderRows(images: Image[], usedIDs: Set<string>): void {
+        const tbody: HTMLElement = document.getElementById("images-tbody")!;
+        if (images.length === 0) {
+            tbody.innerHTML =
+                '<tr><td colspan="6" class="loading-cell">No images found.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = "";
+        for (const img of images) {
+            const tags = img.repo_tags?.length
+                ? img.repo_tags
+                : ["<none>:<none>"];
+            const inUse = usedIDs.has(stripSha256(img.id));
+            const statusBadge = inUse
+                ? '<span class="badge badge--in-use">In use</span>'
+                : '<span class="badge badge--unused">Unused</span>';
+            for (const tag of tags) {
+                const [repo, t] = tag.includes(":")
+                    ? tag.split(":")
+                    : [tag, "latest"];
+                const label = `${repo}:${t}`;
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+          <td><span class="mono">${escHtml(repo)}</span></td>
+          <td><span class="tag-pill">${escHtml(t)}</span></td>
+          <td><span class="mono small">${shortId(img.id)}</span></td>
+          <td>${formatSize(img.size)}</td>
+          <td>${statusBadge}</td>
+          <td>
+            <button class="btn btn--action btn--action-danger remove-btn" data-id="${img.id}" data-label="${label}">Remove</button>
+          </td>
+        `;
+                tbody.appendChild(tr);
+            }
+        }
+    }
+
+    const tableBody = document.getElementById("images-tbody");
+    tableBody?.addEventListener("click", (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+            ".remove-btn",
+        );
+        if (!btn) return;
+        const label = btn.dataset.label ?? btn.dataset.id!;
+        document.dispatchEvent(
+            new CustomEvent("modal:open", {
+                detail: {
+                    id: btn.dataset.id!,
+                    title: "Remove image?",
+                    confirmLabel: "Remove",
+                    message: `"${label}" will be removed. This action cannot be undone.`,
+                },
+            }),
+        );
+    });
+
+    async function load() {
+        try {
+            const [images, usedIDs] = await Promise.all([
+                fetchImages(),
+                fetchUsedImageIDs(),
+            ]);
+
+            const el = document.getElementById("image-count");
+            el && (el.textContent = `${images.length}`);
+
+            renderRows(images, usedIDs);
+        } catch (err: any) {
+            toast.error(err.message);
+
+            if (!tableBody) return;
+            tableBody.innerHTML =
+                '<tr><td colspan="6" class="loading-cell">Failed to load images.</td></tr>';
+        }
+    }
+
+    const pullForm = document.querySelector<HTMLFormElement>("#pull-form");
+    const pullBtn = document.querySelector<HTMLButtonElement>("#pull-btn");
+    pullForm?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const imageEl = document.querySelector<HTMLInputElement>("#pull-image");
+        const image: string = imageEl?.value.trim() ?? "";
+        if (!image) return;
+
+        pullBtn && (pullBtn.disabled = true);
+        pullBtn && (pullBtn.textContent = "Pulling…");
+
+        const tagEl = document.querySelector<HTMLInputElement>("#pull-tag");
+        const tag = tagEl?.value.trim() || "latest";
+
+        try {
+            const res = await fetch(`${RouteV1.Images}/pull`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ image, tag }),
+            });
+
+            if (!res.ok) throw new Error(await res.text());
+
+            await load();
+
+            imageEl && (imageEl.value = "");
+            tagEl && (tagEl.value = "");
+
+            toast.success(`${image}:${tag} pulled successfully`);
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            pullBtn && (pullBtn.disabled = false);
+            pullBtn && (pullBtn.textContent = "Pull");
+        }
+    });
+
+    load();
+</script>
+
+<style lang="scss">
+    .prune-btn {
+        margin-left: auto;
+        align-self: center;
+        min-width: 110px;
+        justify-content: center;
+        padding: 7px 16px;
+        background: rgba(115, 30, 37, 0.15);
+        color: #e57373;
+        border-color: rgba(229, 115, 115, 0.35);
+        font-size: 13px;
+        white-space: nowrap;
+        &:hover {
+            background: rgba(115, 30, 37, 0.28);
+            border-color: rgba(229, 115, 115, 0.6);
+            color: #ef9a9a;
+        }
+    }
+
+    .pull-form {
+        margin-bottom: var(--space-5);
+        padding: var(--space-5);
+
+        &__title {
+            font-family: var(--font-brand);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: var(--space-4);
+        }
+
+        &__row {
+            display: flex;
+            gap: var(--space-3);
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        &__field {
+            flex: 1;
+            min-width: 160px;
+        }
+        &__field--sm {
+            max-width: 120px;
+        }
+
+        &__btn {
+            align-self: flex-end;
+            min-width: 120px;
+            padding: 11px 20px;
+            white-space: nowrap;
+            justify-content: center;
+            background: rgba(24, 104, 242, 0.12);
+            color: #2b89ff;
+            border-color: rgba(24, 104, 242, 0.5);
+            &:hover {
+                background: rgba(24, 104, 242, 0.22);
+                border-color: #1868f2;
+                color: #1868f2;
+            }
+        }
+    }
+
+    .mono {
+        font-family: monospace;
+        font-size: 13px;
+    }
+    .small {
+        font-size: 11px;
+        color: var(--color-text-helper);
+    }
+
+    .tag-pill {
+        display: inline-block;
+        background: rgba(16, 96, 255, 0.1);
+        border: 1px solid rgba(16, 96, 255, 0.3);
+        color: #2b89ff;
+        border-radius: var(--radius-md);
+        padding: 2px 7px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .badge--in-use {
+        background: rgba(20, 198, 203, 0.15);
+        color: #14c6cb;
+        border: 1px solid rgba(20, 198, 203, 0.4);
+    }
+
+    .badge--unused {
+        background: rgba(101, 106, 118, 0.2);
+        color: #656a76;
+        border: 1px solid rgba(101, 106, 118, 0.4);
+    }
+
+    .loading-cell {
+        text-align: center;
+        color: var(--color-text-helper);
+        padding: 32px 16px !important;
+    }
+</style>

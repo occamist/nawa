@@ -1,0 +1,11 @@
+[build]
+  cmd = "go build -o /tmp/nawa ./cmd/nawa"
+  entrypoint = "/tmp/nawa"
+  include_ext = ["go"]
+  exclude_dir = ["web", "webdist", "vendor"]
+  delay = 500
+  kill_delay = "2s"
+  send_interrupt = true
+
+[log]
+  main_only = true

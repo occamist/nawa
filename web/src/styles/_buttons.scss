@@ -1,0 +1,168 @@
+// ── Buttons ─────────────────────────────────────────────────────────────────────
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-system);
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition:
+        background 0.15s,
+        box-shadow 0.15s;
+    text-decoration: none;
+    box-shadow: var(--shadow-whisper);
+
+    &--primary {
+        background: var(--color-action);
+        color: #fff;
+        border-color: var(--color-action);
+        padding: 9px 15px;
+        width: 100%;
+        justify-content: center;
+        font-size: 16px;
+
+        &:hover:not(:disabled) {
+            background: var(--color-action-hover);
+            border-color: var(--color-action-hover);
+        }
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    &--dark {
+        background: var(--color-bg);
+        color: var(--color-text-muted);
+        padding: 0 15px;
+        height: 34px;
+        &:hover {
+            background: var(--color-surface);
+        }
+    }
+
+    &--danger {
+        background: transparent;
+        color: #e57373;
+        border-color: rgba(115, 30, 37, 0.6);
+        padding: 6px 12px;
+        font-size: 13px;
+        &:hover {
+            background: rgba(115, 30, 37, 0.2);
+        }
+    }
+
+    &--sm {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+
+    // Table action buttons — must be global because they are injected via innerHTML
+    &--action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        vertical-align: middle;
+        height: 28px;
+        min-width: 52px;
+        padding: 0 11px;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: var(--font-system);
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(178, 182, 189, 0.25);
+        background: #22252d;
+        color: #a8adb8;
+        cursor: pointer;
+        text-decoration: none;
+        white-space: nowrap;
+        transition:
+            background 0.12s,
+            color 0.12s,
+            border-color 0.12s;
+        box-shadow: none;
+
+        &:hover:not(:disabled) {
+            background: #2c3040;
+            color: var(--color-text);
+            border-color: rgba(178, 182, 189, 0.45);
+            text-decoration: none;
+        }
+
+        &:disabled,
+        &.btn--loading {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+    }
+
+    &--action-start {
+        width: 60px;
+        color: #14c6cb;
+        border-color: rgba(20, 198, 203, 0.3);
+        background: rgba(20, 198, 203, 0.08);
+        &:hover:not(:disabled) {
+            background: rgba(20, 198, 203, 0.18);
+            color: #3dd8dc;
+            border-color: rgba(20, 198, 203, 0.55);
+        }
+    }
+
+    &--action-stop {
+        width: 60px;
+        color: #e8922a;
+        border-color: rgba(187, 90, 0, 0.35);
+        background: rgba(187, 90, 0, 0.1);
+        &:hover:not(:disabled) {
+            background: rgba(187, 90, 0, 0.22);
+            color: #f0a84a;
+            border-color: rgba(187, 90, 0, 0.55);
+        }
+    }
+
+    &--action-logs {
+        color: #2b89ff;
+        border-color: rgba(16, 96, 255, 0.3);
+        background: rgba(16, 96, 255, 0.08);
+        &:hover:not(:disabled) {
+            background: rgba(16, 96, 255, 0.18);
+            color: #5aa3ff;
+            border-color: rgba(16, 96, 255, 0.55);
+            text-decoration: none;
+        }
+    }
+
+    &--action-danger {
+        color: #e57373;
+        border-color: rgba(229, 115, 115, 0.25);
+        background: rgba(115, 30, 37, 0.15);
+        &:hover:not(:disabled) {
+            background: rgba(115, 30, 37, 0.3);
+            color: #ef9a9a;
+            border-color: rgba(229, 115, 115, 0.5);
+        }
+    }
+
+    &--danger-solid {
+        display: inline-flex;
+        align-items: center;
+        height: 34px;
+        padding: 0 16px;
+        font-size: 14px;
+        font-weight: 500;
+        font-family: var(--font-system);
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(229, 115, 115, 0.35);
+        background: rgba(115, 30, 37, 0.3);
+        color: #ef9a9a;
+        cursor: pointer;
+        transition: background 0.15s;
+
+        &:hover {
+            background: rgba(115, 30, 37, 0.5);
+        }
+    }
+}

@@ -1,0 +1,179 @@
+---
+import PageHeader from "@components/PageHeader.astro";
+import StatCard from "@components/StatCard.astro";
+import AppLayout from "@layouts/AppLayout.astro";
+---
+
+<AppLayout title="Dashboard">
+    <main class="page">
+        <PageHeader title="Dashboard" />
+
+        <div class="stats-grid">
+            <StatCard label="Running" id="stat-running" variant="running" />
+            <StatCard label="Stopped" id="stat-stopped" variant="stopped" />
+            <StatCard
+                label="Total Containers"
+                id="stat-total"
+                variant="total"
+            />
+            <StatCard label="Images" id="stat-images" variant="images" />
+        </div>
+
+        <div class="section-heading">Running containers</div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Ports</th>
+                    </tr>
+                </thead>
+                <tbody id="running-tbody">
+                    <tr><td colspan="4" class="loading-cell">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</AppLayout>
+
+<script>
+    import { isAuthenticated, clearAuth } from "../stores/auth";
+    import { toast } from "@libs/toast";
+    import { RouteV1 } from "@libs/route";
+
+    if (!isAuthenticated.get()) window.location.href = "/";
+
+    function shortId(id: string) {
+        return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
+    }
+
+    function formatPorts(ports: any[]) {
+        if (!ports?.length) return "—";
+        return (
+            ports
+                .filter((p) => p.public_port)
+                .map((p) => `${p.public_port}:${p.private_port}/${p.type}`)
+                .join(", ") || "—"
+        );
+    }
+
+    async function load() {
+        try {
+            const [containers, images] = await Promise.all([
+                fetch(RouteV1.Containers, { credentials: "include" }).then(
+                    (r) => {
+                        if (r.status === 401) {
+                            clearAuth();
+                            window.location.href = "/";
+                            throw new Error("unauth");
+                        }
+                        return r.json();
+                    },
+                ),
+                fetch(RouteV1.Images, { credentials: "include" }).then((r) =>
+                    r.json(),
+                ),
+            ]);
+
+            const running = containers.filter(
+                (c: any) => c.state === "running",
+            );
+            const stopped = containers.filter(
+                (c: any) => c.state !== "running",
+            );
+
+            document.getElementById("stat-running")!.textContent = String(
+                running.length,
+            );
+            document.getElementById("stat-stopped")!.textContent = String(
+                stopped.length,
+            );
+            document.getElementById("stat-total")!.textContent = String(
+                containers.length,
+            );
+            document.getElementById("stat-images")!.textContent = String(
+                images.length,
+            );
+
+            const tbody = document.getElementById("running-tbody")!;
+            if (running.length === 0) {
+                tbody.innerHTML =
+                    '<tr><td colspan="4" class="loading-cell">No containers running.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = "";
+            for (const c of running) {
+                const name = c.names?.[0]?.replace(/^\//, "") ?? shortId(c.id);
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+          <td>
+            <a href="/containers" class="container-link">${name}</a>
+            <small class="container-id">${shortId(c.id)}</small>
+          </td>
+          <td><span class="mono">${c.image}</span></td>
+          <td><span class="badge badge--running">running</span></td>
+          <td>${formatPorts(c.ports)}</td>
+        `;
+                tbody.appendChild(tr);
+            }
+        } catch (err: any) {
+            if (err.message !== "unauth") toast.error(err.message);
+        }
+    }
+
+    load();
+</script>
+
+<style lang="scss">
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--space-4);
+        margin-bottom: var(--space-6);
+
+        @media (max-width: 768px) {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .section-heading {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: var(--color-text-helper);
+        font-family: var(--font-brand);
+        margin-bottom: var(--space-3);
+    }
+
+    .container-link {
+        font-weight: 500;
+        color: var(--color-text);
+        text-decoration: none;
+        display: block;
+        &:hover {
+            color: var(--color-action-hover);
+            text-decoration: none;
+        }
+    }
+
+    .container-id {
+        color: var(--color-text-helper);
+        font-family: monospace;
+        font-size: 11px;
+    }
+
+    .mono {
+        font-family: monospace;
+        font-size: 13px;
+    }
+
+    .loading-cell {
+        text-align: center;
+        color: var(--color-text-helper);
+        padding: 32px 16px !important;
+    }
+</style>

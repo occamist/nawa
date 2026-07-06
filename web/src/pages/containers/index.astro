@@ -1,0 +1,250 @@
+---
+import ConfirmModal from "@components/ConfirmModal.astro";
+import PageHeader from "@components/PageHeader.astro";
+import AppLayout from "@layouts/AppLayout.astro";
+---
+
+<AppLayout title="Containers">
+    <main class="page">
+        <PageHeader title="Containers" countId="container-count" />
+
+        <div class="table-wrap">
+            <table id="containers-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>ID</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Ports</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="containers-tbody">
+                    <tr><td colspan="6" class="loading-cell">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <ConfirmModal />
+</AppLayout>
+
+<script>
+    import { isAuthenticated, clearAuth } from "../../stores/auth";
+    import { toast } from "@libs/toast";
+    import { RouteV1 } from "@libs/route";
+
+    if (!isAuthenticated.get()) window.location.href = "/";
+
+    type Port = {
+        ip?: string;
+        private_port: number;
+        public_port?: number;
+        type: string;
+    };
+
+    type Container = {
+        id: string;
+        names: string[];
+        image: string;
+        status: string;
+        state: string;
+        created: number;
+        ports: Port[];
+    };
+
+    function stateClass(state: string): string {
+        const map: Record<string, string> = {
+            running: "badge--running",
+            exited: "badge--exited",
+            paused: "badge--paused",
+            created: "badge--created",
+        };
+        return map[state] ?? "badge--exited";
+    }
+
+    function formatPorts(ports: Port[]): string {
+        if (!ports?.length) return "—";
+        return (
+            ports
+                .filter((p) => p.public_port)
+                .map((p) => `${p.public_port}:${p.private_port}/${p.type}`)
+                .join(", ") || "—"
+        );
+    }
+
+    function shortId(id: string): string {
+        return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
+    }
+
+    async function fetchContainers() {
+        const res = await fetch(RouteV1.Containers, {
+            credentials: "include",
+        });
+        if (res.status === 401) {
+            clearAuth();
+            window.location.href = "/";
+            return;
+        }
+        if (!res.ok) throw new Error(await res.text());
+        return res.json() as Promise<Container[]>;
+    }
+
+    async function containerAction(id: string, action: "start" | "stop") {
+        const res = await fetch(`${RouteV1.Containers}/${id}/${action}`, {
+            method: "POST",
+            credentials: "include",
+        });
+        if (!res.ok) throw new Error(await res.text());
+    }
+
+    async function removeContainer(id: string) {
+        const res = await fetch(`${RouteV1.Containers}/${id}`, {
+            method: "DELETE",
+            credentials: "include",
+        });
+        if (!res.ok) throw new Error(await res.text());
+    }
+
+    // ── Modal ──────────────────────────────────────────────────────────────────
+    document.addEventListener("modal:confirm", async (e: Event) => {
+        const { id } = (e as CustomEvent<{ id: string }>).detail;
+        const name =
+            document.querySelector<HTMLElement>(`[data-id="${id}"] .container-name`)?.textContent ?? shortId(id);
+        try {
+            await removeContainer(id);
+            toast.success(`${name} removed successfully`);
+            await load();
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    });
+
+    // ── Render ─────────────────────────────────────────────────────────────────
+    function renderRow(c: Container): HTMLTableRowElement {
+        const tr = document.createElement("tr");
+        tr.dataset.id = c.id;
+
+        const name = c.names?.[0]?.replace(/^\//, "") ?? shortId(c.id);
+        const isRunning = c.state === "running";
+
+        tr.innerHTML = `
+      <td><span class="container-name">${name}</span></td>
+      <td><span class="container-id">${shortId(c.id)}</span></td>
+      <td><span class="image-name">${c.image}</span></td>
+      <td><span class="badge ${stateClass(c.state)}">${c.state}</span></td>
+      <td>${formatPorts(c.ports)}</td>
+      <td class="actions-cell">
+        <button
+          class="btn btn--action ${isRunning ? "btn--action-stop" : "btn--action-start"} action-btn"
+          data-action="${isRunning ? "stop" : "start"}"
+          data-id="${c.id}"
+          data-name="${name}"
+        >${isRunning ? "Stop" : "Start"}</button>
+        <a href="/containers/logs?id=${c.id}&name=${encodeURIComponent(name)}" class="btn btn--action btn--action-logs">Logs</a>
+        <button
+          class="btn btn--action btn--action-danger action-btn"
+          data-action="remove"
+          data-id="${c.id}"
+          data-name="${name}"
+        >Remove</button>
+      </td>
+    `;
+        return tr;
+    }
+
+    async function load() {
+        const tbody = document.getElementById("containers-tbody")!;
+        try {
+            const containers = await fetchContainers();
+            if (!containers) return;
+
+            document.getElementById("container-count")!.textContent = `${containers.length}`;
+
+            if (containers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">No containers found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = "";
+            containers.forEach((c) => tbody.appendChild(renderRow(c)));
+        } catch (err: any) {
+            toast.error(err.message);
+            tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">Failed to load containers.</td></tr>';
+        }
+    }
+
+    // ── Action delegation ──────────────────────────────────────────────────────
+    document.getElementById("containers-tbody")!.addEventListener("click", async (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".action-btn");
+        if (!btn) return;
+
+        const { action, id, name } = btn.dataset as {
+            action: string;
+            id: string;
+            name: string;
+        };
+
+        if (action === "remove") {
+            document.dispatchEvent(
+                new CustomEvent("modal:open", {
+                    detail: {
+                        id,
+                        title: "Remove container?",
+                        message: `"${name}" will be force-removed. This action cannot be undone.`,
+                        confirmLabel: "Remove",
+                    },
+                }),
+            );
+            return;
+        }
+
+        const originalText = btn.textContent!;
+        btn.disabled = true;
+        btn.textContent = action === "start" ? "Starting…" : "Stopping…";
+        btn.classList.add("btn--loading");
+
+        try {
+            await containerAction(id, action as "start" | "stop");
+            await load();
+        } catch (err: any) {
+            toast.error(err.message);
+            btn.disabled = false;
+            btn.textContent = originalText;
+            btn.classList.remove("btn--loading");
+        }
+    });
+
+    load();
+</script>
+
+<style lang="scss">
+    .container-name {
+        font-weight: 500;
+        color: var(--color-text);
+    }
+
+    .container-id {
+        color: var(--color-text-helper);
+        font-family: monospace;
+        font-size: 11px;
+    }
+
+    .image-name {
+        font-family: monospace;
+        font-size: 13px;
+        color: var(--color-text-muted);
+    }
+
+    .loading-cell {
+        text-align: center;
+        color: var(--color-text-helper);
+        padding: 32px 16px !important;
+    }
+
+    .actions-cell {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+</style>

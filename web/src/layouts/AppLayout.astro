@@ -1,0 +1,15 @@
+---
+import Nav from "@components/Nav.astro";
+// Authenticated shell: LoginLayout + Nav. Used by every page behind auth.
+import LoginLayout from "./LoginLayout.astro";
+
+type Props = {
+    title?: string;
+};
+const { title } = Astro.props;
+---
+
+<LoginLayout {title}>
+    <Nav />
+    <slot />
+</LoginLayout>
