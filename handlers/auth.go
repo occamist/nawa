@@ -105,6 +105,7 @@ func Login(db *sql.DB, cfg config.Config, limiter *ratelimiter.Limiter) http.Han
 			MaxAge:   int(tokenTTL.Seconds()),
 		})
 
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
 			slog.Error("logout", "err", err)
 			http.Error(w, "Server encountered an error", http.StatusInternalServerError)
@@ -140,6 +141,7 @@ func Logout(cfg config.Config) http.HandlerFunc {
 			MaxAge:   -1,
 		})
 
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
 			slog.Error("logout", "err", err)
 			http.Error(w, "Server encountered an error", http.StatusInternalServerError)

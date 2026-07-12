@@ -44,6 +44,7 @@ func ListImages(dc *client.Client) http.HandlerFunc {
 			summaries = append(summaries, s)
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(summaries); err != nil {
 			http.Error(w, "failed to encode the list images response: "+err.Error(), http.StatusInternalServerError)
 		}
@@ -105,6 +106,7 @@ func PullImage(dc *client.Client) http.HandlerFunc {
 			}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]string{"status": "pulled", "image": ref}); err != nil {
 			http.Error(w, "failed to encode the pull image response: "+err.Error(), http.StatusInternalServerError)
 		}
@@ -138,6 +140,7 @@ func PruneImages(dc *client.Client) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		info := pruneImagesInfo{SpaceReclaimed: report.SpaceReclaimed}
 		if err := json.NewEncoder(w).Encode(info); err != nil {
 			http.Error(w, "failed to encode the prune images response: "+err.Error(), http.StatusInternalServerError)

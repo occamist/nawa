@@ -63,6 +63,7 @@ func ListContainers(dc *client.Client) http.HandlerFunc {
 			})
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(summaries)
 	}
 }
@@ -80,6 +81,7 @@ func StartContainer(dc *client.Client) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "started"})
 	}
 }
@@ -98,6 +100,7 @@ func StopContainer(dc *client.Client) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "stopped"})
 	}
 }
