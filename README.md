@@ -1,6 +1,8 @@
 # Nawa (นาวา)
 
-A self-hosted container management for single host machines, served as a single binary. Nawa means a ship or a vessel in Thai. I have built it solely for personal uses. Inspired by the designs of dockge (minimalist) & arcane (pragmatic). I just wanted the best of both worlds for myself.
+A self-hosted container management for single host machines, served as a single binary. Nawa means a ship or a vessel in Thai. 
+
+I have built it solely for personal uses. Inspired by the designs of dockge (minimalist) & arcane (pragmatic). I just wanted the best of both worlds for myself.
 
 ## Building the Binary
 
@@ -19,7 +21,7 @@ All configuration is via environment variables.
 |------------------|----------|-----------|------------------------------------|
 | `JWT_SECRET`     | yes      |           | Secret used to sign JWT tokens     |
 | `ADMIN_USERNAME` | no       | `admin`   | Admin username                     |
-| `ADMIN_PASSWORD` | no       | generated | Admin password (generated on first run if unset) |
+| `ADMIN_PASSWORD` | no       | generated if unset | Admin password            |
 | `COOKIE_SECURE`  | no       | `false`   | Set to `true` behind HTTPS         |
 
 ## Getting Started

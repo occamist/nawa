@@ -16,28 +16,13 @@ import AppLayout from "@layouts/AppLayout.astro";
                 <div class="pull-form__row">
                     <div class="field pull-form__field">
                         <label for="pull-image">Image</label>
-                        <input
-                            type="text"
-                            id="pull-image"
-                            placeholder="nginx"
-                            autocomplete="off"
-                            required
-                        />
+                        <input type="text" id="pull-image" placeholder="nginx" autocomplete="off" required />
                     </div>
                     <div class="field pull-form__field pull-form__field--sm">
                         <label for="pull-tag">Tag</label>
-                        <input
-                            type="text"
-                            id="pull-tag"
-                            placeholder="latest"
-                            autocomplete="off"
-                        />
+                        <input type="text" id="pull-tag" placeholder="latest" autocomplete="off" />
                     </div>
-                    <button
-                        type="submit"
-                        class="btn pull-form__btn"
-                        id="pull-btn">Pull</button
-                    >
+                    <button type="submit" class="btn pull-form__btn" id="pull-btn">Pull</button>
                 </div>
             </form>
         </div>
@@ -82,10 +67,7 @@ import AppLayout from "@layouts/AppLayout.astro";
     }
 
     function escHtml(s: string): string {
-        return s
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     type Image = {
@@ -155,8 +137,7 @@ import AppLayout from "@layouts/AppLayout.astro";
                     id: PRUNE_ID,
                     title: "Prune all images?",
                     confirmLabel: "Prune",
-                    message:
-                        "All images not used by a container will be removed. This action cannot be undone.",
+                    message: "All images not used by a container will be removed. This action cannot be undone.",
                 },
             }),
         );
@@ -171,17 +152,13 @@ import AppLayout from "@layouts/AppLayout.astro";
 
                 try {
                     const { space_reclaimed } = await pruneImages();
-                    toast.success(
-                        `Pruned unused images, reclaimed ${formatSize(space_reclaimed)}`,
-                    );
+                    toast.success(`Pruned unused images, reclaimed ${formatSize(space_reclaimed)}`);
                 } finally {
                     pruneBtn && (pruneBtn.disabled = false);
                     pruneBtn && (pruneBtn.textContent = "Prune All");
                 }
             } else {
-                const btnEl = document.querySelector<HTMLButtonElement>(
-                    `.remove-btn[data-id="${id}"]`,
-                );
+                const btnEl = document.querySelector<HTMLButtonElement>(`.remove-btn[data-id="${id}"]`);
                 const label = btnEl?.dataset.label ?? shortId(id);
                 await removeImage(id);
                 toast.success(`${label} removed successfully`);
@@ -196,23 +173,18 @@ import AppLayout from "@layouts/AppLayout.astro";
     function renderRows(images: Image[], usedIDs: Set<string>): void {
         const tbody: HTMLElement = document.getElementById("images-tbody")!;
         if (images.length === 0) {
-            tbody.innerHTML =
-                '<tr><td colspan="6" class="loading-cell">No images found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No images found.</td></tr>';
             return;
         }
         tbody.innerHTML = "";
         for (const img of images) {
-            const tags = img.repo_tags?.length
-                ? img.repo_tags
-                : ["<none>:<none>"];
+            const tags = img.repo_tags?.length ? img.repo_tags : ["<none>:<none>"];
             const inUse = usedIDs.has(stripSha256(img.id));
             const statusBadge = inUse
                 ? '<span class="badge badge--in-use">In use</span>'
                 : '<span class="badge badge--unused">Unused</span>';
             for (const tag of tags) {
-                const [repo, t] = tag.includes(":")
-                    ? tag.split(":")
-                    : [tag, "latest"];
+                const [repo, t] = tag.includes(":") ? tag.split(":") : [tag, "latest"];
                 const label = `${repo}:${t}`;
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
@@ -232,9 +204,7 @@ import AppLayout from "@layouts/AppLayout.astro";
 
     const tableBody = document.getElementById("images-tbody");
     tableBody?.addEventListener("click", (e) => {
-        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-            ".remove-btn",
-        );
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".remove-btn");
         if (!btn) return;
         const label = btn.dataset.label ?? btn.dataset.id!;
         document.dispatchEvent(
@@ -251,10 +221,7 @@ import AppLayout from "@layouts/AppLayout.astro";
 
     async function load() {
         try {
-            const [images, usedIDs] = await Promise.all([
-                fetchImages(),
-                fetchUsedImageIDs(),
-            ]);
+            const [images, usedIDs] = await Promise.all([fetchImages(), fetchUsedImageIDs()]);
 
             const el = document.getElementById("image-count");
             el && (el.textContent = `${images.length}`);
@@ -264,8 +231,7 @@ import AppLayout from "@layouts/AppLayout.astro";
             toast.error(err.message);
 
             if (!tableBody) return;
-            tableBody.innerHTML =
-                '<tr><td colspan="6" class="loading-cell">Failed to load images.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load images.</td></tr>';
         }
     }
 

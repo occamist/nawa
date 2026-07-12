@@ -11,11 +11,7 @@ import AppLayout from "@layouts/AppLayout.astro";
         <div class="stats-grid">
             <StatCard label="Running" id="stat-running" variant="running" />
             <StatCard label="Stopped" id="stat-stopped" variant="stopped" />
-            <StatCard
-                label="Total Containers"
-                id="stat-total"
-                variant="total"
-            />
+            <StatCard label="Total Containers" id="stat-total" variant="total" />
             <StatCard label="Images" id="stat-images" variant="images" />
         </div>
 
@@ -63,45 +59,28 @@ import AppLayout from "@layouts/AppLayout.astro";
     async function load() {
         try {
             const [containers, images] = await Promise.all([
-                fetch(RouteV1.Containers, { credentials: "include" }).then(
-                    (r) => {
-                        if (r.status === 401) {
-                            clearAuth();
-                            window.location.href = "/";
-                            throw new Error("unauth");
-                        }
-                        return r.json();
-                    },
-                ),
-                fetch(RouteV1.Images, { credentials: "include" }).then((r) =>
-                    r.json(),
-                ),
+                fetch(RouteV1.Containers, { credentials: "include" }).then((r) => {
+                    if (r.status === 401) {
+                        clearAuth();
+                        window.location.href = "/";
+                        throw new Error("unauth");
+                    }
+                    return r.json();
+                }),
+                fetch(RouteV1.Images, { credentials: "include" }).then((r) => r.json()),
             ]);
 
-            const running = containers.filter(
-                (c: any) => c.state === "running",
-            );
-            const stopped = containers.filter(
-                (c: any) => c.state !== "running",
-            );
+            const running = containers.filter((c: any) => c.state === "running");
+            const stopped = containers.filter((c: any) => c.state !== "running");
 
-            document.getElementById("stat-running")!.textContent = String(
-                running.length,
-            );
-            document.getElementById("stat-stopped")!.textContent = String(
-                stopped.length,
-            );
-            document.getElementById("stat-total")!.textContent = String(
-                containers.length,
-            );
-            document.getElementById("stat-images")!.textContent = String(
-                images.length,
-            );
+            document.getElementById("stat-running")!.textContent = String(running.length);
+            document.getElementById("stat-stopped")!.textContent = String(stopped.length);
+            document.getElementById("stat-total")!.textContent = String(containers.length);
+            document.getElementById("stat-images")!.textContent = String(images.length);
 
             const tbody = document.getElementById("running-tbody")!;
             if (running.length === 0) {
-                tbody.innerHTML =
-                    '<tr><td colspan="4" class="loading-cell">No containers running.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="loading-cell">No containers running.</td></tr>';
                 return;
             }
             tbody.innerHTML = "";
