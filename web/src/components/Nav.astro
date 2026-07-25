@@ -9,7 +9,7 @@
 </nav>
 
 <script>
-  import { logout } from '../stores/auth';
+  import { logout } from '@stores/auth';
   document.getElementById('logout-btn')?.addEventListener('click', async () => {
     await logout();
     window.location.href = '/';

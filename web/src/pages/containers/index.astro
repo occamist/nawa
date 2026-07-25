@@ -31,11 +31,9 @@ import AppLayout from "@layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
-    import { isAuthenticated, clearAuth } from "../../stores/auth";
+    import { sessionFetch } from "@stores/auth";
     import { toast } from "@libs/toast";
     import { RouteV1 } from "@libs/route";
-
-    if (!isAuthenticated.get()) window.location.href = "/";
 
     type Port = {
         ip?: string;
@@ -78,33 +76,25 @@ import AppLayout from "@layouts/AppLayout.astro";
         return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
     }
 
-    async function fetchContainers() {
-        const res = await fetch(RouteV1.Containers, {
-            credentials: "include",
-        });
-        if (res.status === 401) {
-            clearAuth();
-            window.location.href = "/";
-            return;
-        }
+    async function fetchContainers(): Promise<Container[] | undefined> {
+        const res = await sessionFetch(RouteV1.Containers);
+        if (!res) return;
         if (!res.ok) throw new Error(await res.text());
-        return res.json() as Promise<Container[]>;
+        return res.json();
     }
 
-    async function containerAction(id: string, action: "start" | "stop") {
-        const res = await fetch(`${RouteV1.Containers}/${id}/${action}`, {
-            method: "POST",
-            credentials: "include",
-        });
+    async function containerAction(id: string, action: "start" | "stop"): Promise<boolean> {
+        const res = await sessionFetch(`${RouteV1.Containers}/${id}/${action}`, { method: "POST" });
+        if (!res) return false;
         if (!res.ok) throw new Error(await res.text());
+        return true;
     }
 
-    async function removeContainer(id: string) {
-        const res = await fetch(`${RouteV1.Containers}/${id}`, {
-            method: "DELETE",
-            credentials: "include",
-        });
+    async function removeContainer(id: string): Promise<boolean> {
+        const res = await sessionFetch(`${RouteV1.Containers}/${id}`, { method: "DELETE" });
+        if (!res) return false;
         if (!res.ok) throw new Error(await res.text());
+        return true;
     }
 
     // ── Modal ──────────────────────────────────────────────────────────────────
@@ -113,7 +103,8 @@ import AppLayout from "@layouts/AppLayout.astro";
         const name =
             document.querySelector<HTMLElement>(`[data-id="${id}"] .container-name`)?.textContent ?? shortId(id);
         try {
-            await removeContainer(id);
+            const removed = await removeContainer(id);
+            if (!removed) return;
             toast.success(`${name} removed successfully`);
             await load();
         } catch (err: any) {
@@ -205,7 +196,8 @@ import AppLayout from "@layouts/AppLayout.astro";
         btn.classList.add("btn--loading");
 
         try {
-            await containerAction(id, action as "start" | "stop");
+            const ok = await containerAction(id, action as "start" | "stop");
+            if (!ok) return;
             await load();
         } catch (err: any) {
             toast.error(err.message);

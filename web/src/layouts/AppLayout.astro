@@ -13,3 +13,9 @@ const { title } = Astro.props;
     <Nav />
     <slot />
 </LoginLayout>
+
+<script>
+    import { isAuthenticated } from "@stores/auth";
+
+    if (!isAuthenticated.get()) window.location.href = "/";
+</script>

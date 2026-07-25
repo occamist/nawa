@@ -51,7 +51,7 @@ import LoginLayout from "@layouts/LoginLayout.astro";
 </LoginLayout>
 
 <script>
-  import { login, isAuthenticated } from '../stores/auth';
+  import { login, isAuthenticated } from '@stores/auth';
 
   if (isAuthenticated.get()) {
     window.location.href = '/dashboard';

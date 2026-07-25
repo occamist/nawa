@@ -36,11 +36,9 @@ import AppLayout from "@layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
-    import { isAuthenticated, clearAuth } from "../stores/auth";
+    import { sessionFetch } from "@stores/auth";
     import { toast } from "@libs/toast";
     import { RouteV1 } from "@libs/route";
-
-    if (!isAuthenticated.get()) window.location.href = "/";
 
     function shortId(id: string) {
         return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
@@ -58,17 +56,14 @@ import AppLayout from "@layouts/AppLayout.astro";
 
     async function load() {
         try {
-            const [containers, images] = await Promise.all([
-                fetch(RouteV1.Containers, { credentials: "include" }).then((r) => {
-                    if (r.status === 401) {
-                        clearAuth();
-                        window.location.href = "/";
-                        throw new Error("unauth");
-                    }
-                    return r.json();
-                }),
-                fetch(RouteV1.Images, { credentials: "include" }).then((r) => r.json()),
+            const [containersResp, imagesResp] = await Promise.all([
+                sessionFetch(RouteV1.Containers),
+                sessionFetch(RouteV1.Images),
             ]);
+            if (!containersResp || !imagesResp) return;
+
+            const containers = await containersResp.json();
+            const images = await imagesResp.json();
 
             const running = containers.filter((c: any) => c.state === "running");
             const stopped = containers.filter((c: any) => c.state !== "running");
@@ -99,7 +94,7 @@ import AppLayout from "@layouts/AppLayout.astro";
                 tbody.appendChild(tr);
             }
         } catch (err: any) {
-            if (err.message !== "unauth") toast.error(err.message);
+            toast.error(err.message);
         }
     }
 

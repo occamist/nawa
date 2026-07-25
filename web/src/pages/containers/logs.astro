@@ -42,10 +42,8 @@ import AppLayout from "@layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
-    import { isAuthenticated, clearAuth } from "../../stores/auth";
+    import { sessionFetch } from "@stores/auth";
     import { RouteV1 } from "@libs/route";
-
-    if (!isAuthenticated.get()) window.location.href = "/";
 
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id") ?? "";
@@ -216,14 +214,8 @@ import AppLayout from "@layouts/AppLayout.astro";
         es?.close();
         setStatus("Connecting…", "connecting");
 
-        const probe = await fetch(RouteV1.Containers, {
-            credentials: "include",
-        });
-        if (probe.status === 401) {
-            clearAuth();
-            window.location.href = "/";
-            return;
-        }
+        const probe = await sessionFetch(RouteV1.Containers);
+        if (!probe) return;
 
         const tail = tailSelect.value;
         es = new EventSource(`${RouteV1.Containers}/${id}/logs?tail=${tail}`, {

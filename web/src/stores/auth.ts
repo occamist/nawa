@@ -20,15 +20,24 @@ export async function login(username: string, password: string): Promise<void> {
   isAuthenticated.set(true);
 }
 
-/** Call on any 401 response or explicit logout — clears local state. */
-export function clearAuth(): void {
-  isAuthenticated.set(false);
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${RouteV1.Auth}/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } finally {
+    isAuthenticated.set(false);
+  }
 }
 
-export async function logout(): Promise<void> {
-  await fetch(`${RouteV1.Auth}/logout`, {
-    method: "POST",
-    credentials: "include",
-  });
-  clearAuth();
+// fetch wrapper for authenticated pages, sends the payload with the credentials if response is 401, it redirects to login.
+export async function sessionFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response | undefined> {
+  const res = await fetch(input, { ...init, credentials: "include" });
+  if (res.status === 401) {
+    isAuthenticated.set(false);
+    window.location.href = "/";
+    return;
+  }
+  return res;
 }

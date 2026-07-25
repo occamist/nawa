@@ -50,11 +50,9 @@ import AppLayout from "@layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
-    import { isAuthenticated, clearAuth } from "../../stores/auth";
+    import { sessionFetch } from "@stores/auth";
     import { toast } from "@libs/toast";
     import { RouteV1 } from "@libs/route";
-
-    if (!isAuthenticated.get()) window.location.href = "/";
 
     function formatSize(bytes: number): string {
         if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
@@ -77,13 +75,9 @@ import AppLayout from "@layouts/AppLayout.astro";
         created: number;
     };
 
-    async function fetchImages(): Promise<Image[]> {
-        const res = await fetch(RouteV1.Images, { credentials: "include" });
-        if (res.status === 401) {
-            clearAuth();
-            window.location.href = "/";
-            return [];
-        }
+    async function fetchImages(): Promise<Image[] | undefined> {
+        const res = await sessionFetch(RouteV1.Images);
+        if (!res) return;
         if (!res.ok) throw new Error(await res.text());
         return res.json();
     }
@@ -103,26 +97,18 @@ import AppLayout from "@layouts/AppLayout.astro";
         return new Set(containers.map((c) => stripSha256(c.image_id)));
     }
 
-    async function removeImage(id: string) {
-        const res = await fetch(`${RouteV1.Images}/${encodeURIComponent(id)}`, {
-            method: "DELETE",
-            credentials: "include",
-        });
+    async function removeImage(id: string): Promise<boolean> {
+        const res = await sessionFetch(`${RouteV1.Images}/${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!res) return false;
         if (!res.ok) throw new Error(await res.text());
+        return true;
     }
 
     type PruneResult = { space_reclaimed: number };
 
-    async function pruneImages(): Promise<PruneResult> {
-        const res = await fetch(`${RouteV1.Images}/prune`, {
-            method: "POST",
-            credentials: "include",
-        });
-        if (res.status === 401) {
-            clearAuth();
-            window.location.href = "/";
-            throw new Error("unauthorized");
-        }
+    async function pruneImages(): Promise<PruneResult | undefined> {
+        const res = await sessionFetch(`${RouteV1.Images}/prune`, { method: "POST" });
+        if (!res) return;
         if (!res.ok) throw new Error(await res.text());
         return res.json();
     }
@@ -151,8 +137,9 @@ import AppLayout from "@layouts/AppLayout.astro";
                 pruneBtn && (pruneBtn.textContent = "Pruning…");
 
                 try {
-                    const { space_reclaimed } = await pruneImages();
-                    toast.success(`Pruned unused images, reclaimed ${formatSize(space_reclaimed)}`);
+                    const result = await pruneImages();
+                    if (!result) return;
+                    toast.success(`Pruned unused images, reclaimed ${formatSize(result.space_reclaimed)}`);
                 } finally {
                     pruneBtn && (pruneBtn.disabled = false);
                     pruneBtn && (pruneBtn.textContent = "Prune All");
@@ -160,7 +147,8 @@ import AppLayout from "@layouts/AppLayout.astro";
             } else {
                 const btnEl = document.querySelector<HTMLButtonElement>(`.remove-btn[data-id="${id}"]`);
                 const label = btnEl?.dataset.label ?? shortId(id);
-                await removeImage(id);
+                const removed = await removeImage(id);
+                if (!removed) return;
                 toast.success(`${label} removed successfully`);
             }
             await load();
@@ -222,6 +210,7 @@ import AppLayout from "@layouts/AppLayout.astro";
     async function load() {
         try {
             const [images, usedIDs] = await Promise.all([fetchImages(), fetchUsedImageIDs()]);
+            if (!images) return;
 
             const el = document.getElementById("image-count");
             el && (el.textContent = `${images.length}`);
@@ -251,12 +240,12 @@ import AppLayout from "@layouts/AppLayout.astro";
         const tag = tagEl?.value.trim() || "latest";
 
         try {
-            const res = await fetch(`${RouteV1.Images}/pull`, {
+            const res = await sessionFetch(`${RouteV1.Images}/pull`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ image, tag }),
             });
+            if (!res) return;
 
             if (!res.ok) throw new Error(await res.text());
 
