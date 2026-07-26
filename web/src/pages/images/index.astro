@@ -169,8 +169,8 @@ import AppLayout from "@layouts/AppLayout.astro";
             const tags = img.repo_tags?.length ? img.repo_tags : ["<none>:<none>"];
             const inUse = usedIDs.has(stripSha256(img.id));
             const statusBadge = inUse
-                ? '<span class="badge badge--in-use">In use</span>'
-                : '<span class="badge badge--unused">Unused</span>';
+                ? '<span class="badge badge--in-use">in use</span>'
+                : '<span class="badge badge--unused">unused</span>';
             for (const tag of tags) {
                 const [repo, t] = tag.includes(":") ? tag.split(":") : [tag, "latest"];
                 const label = `${repo}:${t}`;
@@ -347,18 +347,6 @@ import AppLayout from "@layouts/AppLayout.astro";
         padding: 2px 7px;
         font-size: 12px;
         font-weight: 500;
-    }
-
-    .badge--in-use {
-        background: rgba(20, 198, 203, 0.15);
-        color: #14c6cb;
-        border: 1px solid rgba(20, 198, 203, 0.4);
-    }
-
-    .badge--unused {
-        background: rgba(101, 106, 118, 0.2);
-        color: #656a76;
-        border: 1px solid rgba(101, 106, 118, 0.4);
     }
 
     .loading-cell {

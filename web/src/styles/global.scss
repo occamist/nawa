@@ -213,6 +213,16 @@ table {
         color: #2b89ff;
         border: 1px solid rgba(16, 96, 255, 0.3);
     }
+    &--in-use {
+        background: rgba(123, 66, 188, 0.15);
+        color: #7b42bc;
+        border: 1px solid rgba(123, 66, 188, 0.4);
+    }
+    &--unused {
+        background: rgba(101, 106, 118, 0.2);
+        color: #656a76;
+        border: 1px solid rgba(101, 106, 118, 0.4);
+    }
 }
 
 // ── Page layout ──────────────────────────────────────────────────────────────────
