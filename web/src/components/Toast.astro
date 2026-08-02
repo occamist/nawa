@@ -1,0 +1,120 @@
+<!-- Notification toasts. Listens for toast events from @libs/toast and renders them. -->
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+  import scope from 'astro:scope';
+  import { TOAST_EVENT, type ToastType } from '@libs/toast';
+  
+  const ICONS: Record<ToastType, string> = {
+    error:   `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+    success: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M5 8.5l2.5 2.5L11 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    info:    `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M8 7.5v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="5" r="0.9" fill="currentColor"/></svg>`,
+  };
+
+  const CLOSE_ICON = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+
+  const DURATION = 8000;
+
+  const container = document.getElementById('toast-container')!;
+  const scopeAttr = `data-astro-cid-${scope}`;
+
+  document.addEventListener(TOAST_EVENT, (e: Event) => {
+    const { message, type } = (e as CustomEvent<{ message: string; type: ToastType }>).detail;
+
+    const el = document.createElement('div');
+    el.className = `toast toast--${type}`;
+    el.innerHTML = `
+      <span class="toast__icon">${ICONS[type]}</span>
+      <span class="toast__message">${message}</span>
+      <button class="toast__close" aria-label="Dismiss">${CLOSE_ICON}</button>
+    `;
+    el.setAttribute(scopeAttr, '');
+    el.querySelectorAll('*').forEach(child => child.setAttribute(scopeAttr, ''));
+    container.appendChild(el);
+
+    requestAnimationFrame(() => el.classList.add('toast--visible'));
+
+    function dismiss() {
+      el.classList.remove('toast--visible');
+      el.addEventListener('transitionend', () => el.remove(), { once: true });
+    }
+
+    el.querySelector('.toast__close')!.addEventListener('click', dismiss);
+    setTimeout(dismiss, DURATION);
+  });
+</script>
+
+<style lang="scss">
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    min-width: 280px;
+    max-width: 480px;
+    border-radius: 8px;
+    border-left: 4px solid;
+    background: var(--color-surface);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    pointer-events: all;
+    transform: translateX(calc(100% + 32px));
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+
+    &--visible {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    &--error   { border-left-color: #e57373; .toast__icon { color: #e57373; } }
+    &--success { border-left-color: #14c6cb; .toast__icon { color: #14c6cb; } }
+    &--info    { border-left-color: #2b89ff; .toast__icon { color: #2b89ff; } }
+
+    &__icon {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    &__message {
+      flex: 1;
+      font-size: 13px;
+      font-family: var(--font-system);
+      color: var(--color-text);
+      line-height: 1.5;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    &__close {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: var(--color-text-helper);
+      cursor: pointer;
+      padding: 4px;
+      margin-left: 4px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+
+      &:hover {
+        color: var(--color-text);
+        background: rgba(255, 255, 255, 0.06);
+      }
+    }
+  }
+</style>

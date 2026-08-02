@@ -1,0 +1,98 @@
+---
+---
+<!-- Reusable confirmation dialog. Listens for modal:open and fires modal:confirm on acceptance. -->
+
+<div id="confirm-modal" class="modal-backdrop" style="display:none" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+  <div class="modal">
+    <h2 class="modal__title" id="confirm-modal-title"></h2>
+    <p class="modal__body" id="confirm-modal-body"></p>
+    <div class="modal__actions">
+      <button class="btn btn--danger-solid" id="confirm-modal-confirm"></button>
+      <button class="btn btn--dark" id="confirm-modal-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modal   = document.getElementById('confirm-modal')!;
+  const bodyEl  = document.getElementById('confirm-modal-body')!;
+  const cancel  = document.getElementById('confirm-modal-cancel')!;
+  const confirm = document.getElementById('confirm-modal-confirm')!;
+
+  let pendingId: string | null = null;
+
+  const titleEl = document.getElementById('confirm-modal-title')!;
+
+  function open(id: string, message: string, confirmLabel: string, title: string) {
+    pendingId = id;
+    bodyEl.textContent = message;
+    confirm.textContent = confirmLabel;
+    titleEl.textContent = title;
+    modal.style.display = 'flex';
+  }
+
+  function close() {
+    modal.style.display = 'none';
+    pendingId = null;
+  }
+
+  document.addEventListener('modal:open', (e: Event) => {
+    const { id, message, confirmLabel, title } = (e as CustomEvent<{ id: string; message: string; confirmLabel: string; title: string }>).detail;
+    open(id, message, confirmLabel, title);
+  });
+
+  cancel.addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+  confirm.addEventListener('click', () => {
+    if (!pendingId) return;
+    const id = pendingId;
+    close();
+    document.dispatchEvent(new CustomEvent('modal:confirm', { detail: { id } }));
+  });
+</script>
+
+<style lang="scss">
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(2px);
+  }
+
+  .modal {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    padding: var(--space-6);
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+    &__title {
+      font-family: var(--font-brand);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: var(--space-3);
+    }
+
+    &__body {
+      font-size: 14px;
+      color: var(--color-text-muted);
+      line-height: 1.6;
+      margin-bottom: var(--space-6);
+    }
+
+    &__actions {
+      display: flex;
+      justify-content: center;
+      gap: var(--space-3);
+    }
+  }
+</style>

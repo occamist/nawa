@@ -1,0 +1,248 @@
+@use "buttons";
+
+// ── Design tokens ──────────────────────────────────────────────────────────────
+:root {
+    // Backgrounds
+    --color-bg: #15181e;
+    --color-bg-deep: #0d0e12;
+    --color-surface: #1e2128;
+
+    // Text
+    --color-text: #efeff1;
+    --color-text-muted: #d5d7db;
+    --color-text-helper: #656a76;
+
+    // Borders
+    --color-border: rgba(178, 182, 189, 0.4);
+    --color-border-input: rgb(97, 104, 117);
+
+    // Actions
+    --color-action: #1060ff;
+    --color-action-hover: #2b89ff;
+
+    // Shadows
+    --shadow-whisper:
+        rgba(97, 104, 117, 0.05) 0px 1px 1px,
+        rgba(97, 104, 117, 0.05) 0px 2px 2px;
+
+    // State
+    --color-success: #14c6cb;
+    --color-danger: #731e25;
+    --color-warning: #bb5a00;
+
+    // Typography
+    --font-brand: system-ui, -apple-system, sans-serif;
+    --font-system:
+        system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+        Arial, sans-serif;
+
+    // Radius
+    --radius-sm: 3px;
+    --radius-md: 5px;
+    --radius-card: 8px;
+
+    // Spacing base 8px
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────────
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    height: 100%;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-system);
+    font-size: 16px;
+    line-height: 1.63;
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--color-action);
+    text-decoration: none;
+    &:hover {
+        color: var(--color-action-hover);
+        text-decoration: underline;
+    }
+}
+
+// ── Shared form elements ────────────────────────────────────────────────────────
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+
+    label {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+        color: var(--color-text-muted);
+        font-family: var(--font-brand);
+    }
+
+    input[type="text"],
+    input[type="password"] {
+        background: var(--color-bg-deep);
+        color: var(--color-text);
+        border: 1px solid var(--color-border-input);
+        border-radius: var(--radius-md);
+        padding: 11px;
+        font-size: 16px;
+        font-family: var(--font-system);
+        outline: none;
+        width: 100%;
+        transition:
+            border-color 0.15s,
+            box-shadow 0.15s;
+
+        &:-webkit-autofill,
+        &:-webkit-autofill:hover,
+        &:-webkit-autofill:focus,
+        &:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 1000px #0d0e12 inset;
+            -webkit-text-fill-color: #efeff1;
+            font-size: 16px;
+            font-family: var(--font-system);
+        }
+
+        &::placeholder {
+            color: var(--color-text-helper);
+        }
+        &:focus {
+            border-color: var(--color-action);
+            box-shadow: 0 0 0 3px rgba(16, 96, 255, 0.25);
+        }
+    }
+
+    .helper {
+        font-size: 13px;
+        color: var(--color-text-helper);
+    }
+}
+
+// ── Card ─────────────────────────────────────────────────────────────────────────
+.card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-whisper);
+    padding: var(--space-6);
+}
+
+// ── Table ────────────────────────────────────────────────────────────────────────
+.table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+
+    th {
+        background: var(--color-bg-deep);
+        color: var(--color-text-helper);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        padding: 10px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    td {
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(178, 182, 189, 0.1);
+        color: var(--color-text-muted);
+        vertical-align: middle;
+    }
+
+    tr:last-child td {
+        border-bottom: none;
+    }
+    tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+    }
+}
+
+// ── Status badge ─────────────────────────────────────────────────────────────────
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+
+    &--running {
+        background: rgba(20, 198, 203, 0.15);
+        color: #14c6cb;
+        border: 1px solid rgba(20, 198, 203, 0.4);
+    }
+    &--exited {
+        background: rgba(101, 106, 118, 0.2);
+        color: #656a76;
+        border: 1px solid rgba(101, 106, 118, 0.4);
+    }
+    &--paused {
+        background: rgba(187, 90, 0, 0.15);
+        color: #e8922a;
+        border: 1px solid rgba(187, 90, 0, 0.4);
+    }
+    &--created {
+        background: rgba(16, 96, 255, 0.12);
+        color: #2b89ff;
+        border: 1px solid rgba(16, 96, 255, 0.3);
+    }
+    &--in-use {
+        background: rgba(123, 66, 188, 0.15);
+        color: #7b42bc;
+        border: 1px solid rgba(123, 66, 188, 0.4);
+    }
+    &--unused {
+        background: rgba(101, 106, 118, 0.2);
+        color: #656a76;
+        border: 1px solid rgba(101, 106, 118, 0.4);
+    }
+}
+
+// ── Page layout ──────────────────────────────────────────────────────────────────
+.page {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-5);
+
+    &__header {
+        margin-bottom: var(--space-5);
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-4);
+
+        h1 {
+            font-family: var(--font-brand);
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--color-text);
+            line-height: 1.19;
+        }
+    }
+}

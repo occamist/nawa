@@ -1,0 +1,86 @@
+version: "2"
+run:
+  tests: true
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - dogsled
+    - durationcheck
+    - errcheck
+    - errname
+    - fatcontext
+    - forcetypeassert
+    - goconst
+    - gosec
+    - govet
+    - ineffassign
+    - makezero
+    - modernize
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - sloglint
+    - staticcheck
+    - sqlclosecheck
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - whitespace
+    - wrapcheck
+  settings:
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      ignore-tests: true
+      ignore-string-values:
+        - "status"
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      max-open-files: 2048
+      confidence: 0.8
+      severity: warning
+      enable-all-rules: false
+      rules:
+        - name: context-as-argument
+          severity: warning
+          disabled: false
+        - name: defer
+          severity: warning
+          disabled: false
+        - name: unexported-return
+          severity: warning
+          disabled: false
+    usetesting:
+      context-background: true
+      context-todo: true
+  exclusions:
+    generated: lax
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/occamist/nawa)
+      custom-order: true
+    gofumpt:
+      extra-rules: true

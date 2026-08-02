@@ -1,0 +1,27 @@
+---
+type Props = {
+    title: string;
+    countId?: string;
+};
+const { title, countId } = Astro.props;
+---
+
+<!-- Standard page header with title and optional count badge. Slots: before (e.g. back link), default (trailing content). -->
+<div class="page__header">
+    <slot name="before" />
+    <h1>{title}</h1>
+    {countId && <span id={countId} class="count-badge" />}
+    <slot />
+</div>
+
+<style lang="scss">
+    .count-badge {
+        font-size: 13px;
+        color: var(--color-text-helper);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 2px 8px;
+        font-family: var(--font-system);
+    }
+</style>

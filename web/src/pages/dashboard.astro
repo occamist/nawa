@@ -1,0 +1,306 @@
+---
+import PageHeader from "@components/PageHeader.astro";
+import StatCard from "@components/StatCard.astro";
+import AppLayout from "@layouts/AppLayout.astro";
+---
+
+<AppLayout title="Dashboard">
+    <main class="page">
+        <PageHeader title="Dashboard" />
+
+        <div class="section-heading">
+            Host
+            <span id="host-status-badge" class="stream-status stream-status--connecting">Connecting…</span>
+        </div>
+
+        <div class="stats-grid">
+            <StatCard label="CPU" id="stat-cpu" variant="purple" subId="stat-cpu-sub" />
+            <StatCard label="Memory" id="stat-memory" variant="blue" subId="stat-memory-sub" />
+            <StatCard label="Disk" id="stat-disk" variant="orange" subId="stat-disk-sub" />
+            <StatCard label="Network" id="stat-network" variant="teal" subId="stat-network-sub" />
+        </div>
+
+        <div class="stats-grid">
+            <StatCard label="Containers" id="stat-containers-total" variant="teal">
+                <span class="stat-breakdown">
+                    <span class="stat-breakdown__item stat-breakdown__item--running" id="stat-containers-running"
+                    ></span>
+                    <span class="stat-breakdown__sep">·</span>
+                    <span class="stat-breakdown__item stat-breakdown__item--stopped" id="stat-containers-stopped"
+                    ></span>
+                </span>
+            </StatCard>
+            <StatCard label="Images" id="stat-images-total" variant="orange">
+                <span class="stat-breakdown">
+                    <span class="stat-breakdown__item stat-breakdown__item--in-use" id="stat-images-inuse"></span>
+                    <span class="stat-breakdown__sep">·</span>
+                    <span class="stat-breakdown__item stat-breakdown__item--unused" id="stat-images-unused"></span>
+                </span>
+            </StatCard>
+            <StatCard label="Volumes" id="stat-volumes-total" variant="blue">
+                <span class="stat-breakdown stat-breakdown--placeholder">Coming soon</span>
+            </StatCard>
+            <StatCard label="Networks" id="stat-networks-total" variant="purple">
+                <span class="stat-breakdown stat-breakdown--placeholder">Coming soon</span>
+            </StatCard>
+        </div>
+
+        <div class="section-heading">Running containers</div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Ports</th>
+                    </tr>
+                </thead>
+                <tbody id="running-tbody">
+                    <tr><td colspan="4" class="loading-cell">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</AppLayout>
+
+<script>
+    import { sessionFetch } from "@stores/auth";
+    import { toast } from "@libs/toast";
+    import { RouteV1 } from "@libs/route";
+    import { formatBytes } from "@libs/format";
+
+    function shortId(id: string) {
+        return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
+    }
+
+    function stripSha256(id: string) {
+        return id.startsWith("sha256:") ? id.slice(7) : id;
+    }
+
+    function formatPorts(ports: any[]) {
+        if (!ports?.length) return "—";
+        return (
+            ports
+                .filter((p) => p.public_port)
+                .map((p) => `${p.public_port}:${p.private_port}/${p.type}`)
+                .join(", ") || "—"
+        );
+    }
+
+    function formatRate(bytesPerSec: number) {
+        return `${formatBytes(bytesPerSec)}/s`;
+    }
+
+    let es: EventSource | null = null;
+
+    function setHostStatus(label: string, mod: string) {
+        const badge = document.getElementById("host-status-badge")!;
+        badge.textContent = label;
+        badge.className = `stream-status stream-status--${mod}`;
+    }
+
+    function connectStream() {
+        es?.close();
+        setHostStatus("Connecting…", "connecting");
+
+        type HostStats = {
+            cpu_percent: number;
+            cpu_cores: number;
+            mem_used: number;
+            mem_total: number;
+            disk_used: number;
+            disk_total: number;
+            net_sent_rate: number;
+            net_recv_rate: number;
+        };
+        es = new EventSource(RouteV1.HostStats, { withCredentials: true });
+
+        es.onopen = () => setHostStatus("Live", "live");
+        es.onmessage = (e) => {
+            const stats: HostStats = JSON.parse(e.data);
+            document.getElementById("stat-cpu")!.textContent = `${stats.cpu_percent.toFixed(1)}%`;
+            document.getElementById("stat-cpu-sub")!.textContent =
+                `${stats.cpu_cores} CPU${stats.cpu_cores === 1 ? "" : "s"}`;
+
+            const memPct = (stats.mem_used / stats.mem_total) * 100;
+            document.getElementById("stat-memory")!.textContent = `${memPct.toFixed(1)}%`;
+            document.getElementById("stat-memory-sub")!.textContent =
+                `${formatBytes(stats.mem_used)} / ${formatBytes(stats.mem_total)}`;
+
+            const diskPct = (stats.disk_used / stats.disk_total) * 100;
+            document.getElementById("stat-disk")!.textContent = `${diskPct.toFixed(1)}%`;
+            document.getElementById("stat-disk-sub")!.textContent =
+                `${formatBytes(stats.disk_used)} / ${formatBytes(stats.disk_total)}`;
+
+            document.getElementById("stat-network")!.textContent = formatRate(
+                stats.net_sent_rate + stats.net_recv_rate,
+            );
+            document.getElementById("stat-network-sub")!.textContent =
+                `↑ ${formatRate(stats.net_sent_rate)}  ↓ ${formatRate(stats.net_recv_rate)}`;
+        };
+        es.onerror = () => {
+            setHostStatus("Disconnected", "disconnected");
+            es?.close();
+        };
+    }
+
+    async function load() {
+        try {
+            const [containersResp, imagesResp] = await Promise.all([
+                sessionFetch(RouteV1.Containers),
+                sessionFetch(RouteV1.Images),
+            ]);
+            if (!containersResp || !imagesResp) return;
+            connectStream();
+
+            const containers = await containersResp.json();
+            const images = await imagesResp.json();
+
+            const running = containers.filter((c: any) => c.state === "running");
+            const stopped = containers.filter((c: any) => c.state !== "running");
+
+            document.getElementById("stat-containers-total")!.textContent = String(containers.length);
+            document.getElementById("stat-containers-running")!.textContent = `${running.length} running`;
+            document.getElementById("stat-containers-stopped")!.textContent = `${stopped.length} stopped`;
+
+            const usedImageIDs = new Set(containers.map((c: any) => stripSha256(c.image_id)));
+            const inUseImages = images.filter((img: any) => usedImageIDs.has(stripSha256(img.id)));
+
+            document.getElementById("stat-images-total")!.textContent = String(images.length);
+            document.getElementById("stat-images-inuse")!.textContent = `${inUseImages.length} in use`;
+            document.getElementById("stat-images-unused")!.textContent = `${images.length - inUseImages.length} unused`;
+
+            const tbody = document.getElementById("running-tbody")!;
+            if (running.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="loading-cell">No containers running.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = "";
+            for (const c of running) {
+                const name = c.names?.[0]?.replace(/^\//, "") ?? shortId(c.id);
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+          <td>
+            <a href="/containers" class="container-link">${name}</a>
+            <small class="container-id">${shortId(c.id)}</small>
+          </td>
+          <td><span class="mono">${c.image}</span></td>
+          <td><span class="badge badge--running">running</span></td>
+          <td>${formatPorts(c.ports)}</td>
+        `;
+                tbody.appendChild(tr);
+            }
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    }
+
+    load();
+
+    window.addEventListener("beforeunload", () => es?.close());
+</script>
+
+<style lang="scss">
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--space-4);
+        margin-bottom: var(--space-6);
+
+        @media (max-width: 768px) {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .section-heading {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: var(--color-text-helper);
+        font-family: var(--font-brand);
+        margin-bottom: var(--space-3);
+    }
+
+    .stream-status {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: none;
+        padding: 2px 7px;
+        border-radius: var(--radius-md);
+        border: 1px solid;
+
+        &--connecting {
+            color: #e8922a;
+            border-color: rgba(187, 90, 0, 0.4);
+            background: rgba(187, 90, 0, 0.1);
+        }
+        &--live {
+            color: #14c6cb;
+            border-color: rgba(20, 198, 203, 0.4);
+            background: rgba(20, 198, 203, 0.1);
+        }
+        &--disconnected {
+            color: #656a76;
+            border-color: rgba(101, 106, 118, 0.4);
+            background: rgba(101, 106, 118, 0.1);
+        }
+    }
+
+    .container-link {
+        font-weight: 500;
+        color: var(--color-text);
+        text-decoration: none;
+        display: block;
+        &:hover {
+            color: var(--color-action-hover);
+            text-decoration: none;
+        }
+    }
+
+    .container-id {
+        color: var(--color-text-helper);
+        font-family: monospace;
+        font-size: 11px;
+    }
+
+    .mono {
+        font-family: monospace;
+        font-size: 13px;
+    }
+
+    .loading-cell {
+        text-align: center;
+        color: var(--color-text-helper);
+        padding: 32px 16px !important;
+    }
+
+    .stat-breakdown {
+        font-size: 12px;
+        color: #3ddc84;
+
+        &--placeholder {
+            color: #656a76;
+            font-style: italic;
+        }
+
+        &__item {
+            font-weight: 600;
+
+            &--stopped,
+            &--unused {
+                color: #656a76;
+            }
+        }
+
+        &__sep {
+            margin: 0 4px;
+        }
+    }
+</style>

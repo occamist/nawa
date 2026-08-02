@@ -1,0 +1,150 @@
+---
+import LoginLayout from "@layouts/LoginLayout.astro";
+---
+
+<LoginLayout title="Sign in">
+  <div class="login-root" id="login-root" style="visibility:hidden">
+    <div class="login-card card">
+      <div class="login-card__logo">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect width="36" height="36" rx="6" fill="#1060ff" fill-opacity="0.12"/>
+          <path d="M10 26V10L26 26V10" stroke="#2b89ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="login-card__wordmark">Nawa</span>
+      </div>
+
+      <h1 class="login-card__heading">Sign in to your instance</h1>
+
+      <div id="error-banner" class="error-banner" style="display:none"></div>
+
+      <form id="login-form" class="login-form" novalidate>
+        <div class="field">
+          <label for="username">Username</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            placeholder="admin"
+            autocomplete="username"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn btn--primary" id="submit-btn">
+          Sign in
+        </button>
+      </form>
+    </div>
+  </div>
+</LoginLayout>
+
+<script>
+  import { login, isAuthenticated } from '@stores/auth';
+
+  if (isAuthenticated.get()) {
+    window.location.href = '/dashboard';
+  } else {
+    document.getElementById('login-root')!.style.visibility = 'visible';
+  }
+
+  const form = document.getElementById('login-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const errorBanner = document.getElementById('error-banner') as HTMLDivElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBanner.style.display = 'none';
+
+    const username = (document.getElementById('username') as HTMLInputElement).value.trim();
+    const password = (document.getElementById('password') as HTMLInputElement).value;
+
+    if (!username || !password) {
+      errorBanner.textContent = 'Username and password are required.';
+      errorBanner.style.display = 'block';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in…';
+
+    try {
+      await login(username, password);
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      errorBanner.textContent = err.message ?? 'Login failed. Please try again.';
+      errorBanner.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign in';
+    }
+  });
+</script>
+
+<style lang="scss">
+  .login-root {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    padding: var(--space-5);
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 400px;
+
+    &__logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-6);
+    }
+
+    &__wordmark {
+      font-family: var(--font-brand);
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--color-text);
+      letter-spacing: 0.5px;
+    }
+
+    &__heading {
+      font-family: var(--font-brand);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.19;
+      
+      margin-bottom: var(--space-5);
+    }
+  }
+
+  .error-banner {
+    background: rgba(115, 30, 37, 0.2);
+    border: 1px solid rgba(115, 30, 37, 0.5);
+    border-radius: var(--radius-md);
+    color: #e57373;
+    padding: var(--space-3) var(--space-4);
+    font-size: 14px;
+    margin-bottom: var(--space-4);
+  }
+
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+</style>
