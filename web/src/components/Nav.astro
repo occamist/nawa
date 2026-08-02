@@ -1,69 +1,94 @@
 <!-- Top navigation bar with brand, page links, and sign-out button. -->
 <nav class="nav">
-  <a href="/dashboard" class="nav__brand">nawa</a>
-  <a href="/dashboard" class="nav__link">Dashboard</a>
-  <a href="/containers" class="nav__link">Containers</a>
-  <a href="/images" class="nav__link">Images</a>
-  <span class="nav__spacer" />
-  <button class="nav__logout" id="logout-btn">Sign out</button>
+    <a href="/dashboard" class="nav__brand">nawa</a>
+    <a href="/containers" class="nav__link">Containers</a>
+    <a href="/images" class="nav__link">Images</a>
+    <a href="/volumes" class="nav__link">Volumes</a>
+    <a href="/networks" class="nav__link">Networks</a>
+    <a href="/vulnerabilities" class="nav__link">Vulnerabilities</a>
+    <span class="nav__spacer"></span>
+    <button class="nav__logout" id="logout-btn">Sign out</button>
 </nav>
 
 <script>
-  import { logout } from '@stores/auth';
-  document.getElementById('logout-btn')?.addEventListener('click', async () => {
-    await logout();
-    window.location.href = '/';
-  });
+    import { logout } from "@stores/auth";
+    document.getElementById("logout-btn")?.addEventListener("click", async () => {
+        await logout();
+        window.location.href = "/";
+    });
 </script>
 
 <style lang="scss">
-  .nav {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-6);
-    background: var(--color-bg-deep);
-    border-bottom: 1px solid var(--color-border);
+    .nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-6);
+        background: var(--color-bg-deep);
+        border-bottom: 1px solid var(--color-border);
 
-    &__brand {
-      font-family: var(--font-brand);
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--color-text);
-      letter-spacing: 0.5px;
-      text-decoration: none;
-      margin-right: var(--space-5);
-      &:hover { color: var(--color-text); text-decoration: none; }
+        &__brand {
+            font-family: var(--font-brand);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--color-text);
+            letter-spacing: 0.5px;
+            text-decoration: none;
+            margin-right: var(--space-5);
+            &:hover {
+                color: var(--color-text);
+                text-decoration: none;
+            }
+            &:focus-visible {
+                outline: 3px solid var(--color-action);
+                outline-offset: 2px;
+            }
+        }
+
+        &__link {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--color-text-helper);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            transition:
+                color 0.15s,
+                background 0.15s;
+
+            &:hover,
+            &.active {
+                color: var(--color-text);
+                background: var(--color-surface);
+                text-decoration: none;
+            }
+            &:focus-visible {
+                outline: 3px solid var(--color-action);
+                outline-offset: 2px;
+            }
+        }
+
+        &__spacer {
+            flex: 1;
+        }
+
+        &__logout {
+            font-size: 16px;
+            color: var(--color-text-helper);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-family: var(--font-system);
+            &:hover {
+                color: var(--color-text);
+                background: var(--color-surface);
+            }
+            &:focus-visible {
+                outline: 3px solid var(--color-action);
+                outline-offset: 2px;
+            }
+        }
     }
-
-    &__link {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--color-text-helper);
-      padding: var(--space-1) var(--space-3);
-      border-radius: var(--radius-md);
-      text-decoration: none;
-      transition: color 0.15s, background 0.15s;
-
-      &:hover, &.active {
-        color: var(--color-text);
-        background: var(--color-surface);
-        text-decoration: none;
-      }
-    }
-
-    &__spacer { flex: 1; }
-
-    &__logout {
-      font-size: 13px;
-      color: var(--color-text-helper);
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: var(--space-1) var(--space-3);
-      border-radius: var(--radius-md);
-      font-family: var(--font-system);
-      &:hover { color: var(--color-text); background: var(--color-surface); }
-    }
-  }
 </style>
