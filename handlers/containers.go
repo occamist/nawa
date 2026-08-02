@@ -64,7 +64,10 @@ func ListContainers(dc *client.Client) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(summaries)
+		if err := json.NewEncoder(w).Encode(summaries); err != nil {
+			slog.Error("encode container summaries", "err", err)
+			http.Error(w, "failed to encode container summaries: "+err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -82,7 +85,10 @@ func StartContainer(dc *client.Client) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "started"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "started"}); err != nil {
+			slog.Error("encode start container status", "err", err)
+			http.Error(w, "failed to encode container start status: "+err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -101,7 +107,10 @@ func StopContainer(dc *client.Client) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "stopped"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "stopped"}); err != nil {
+			slog.Error("encode stop container status", "err", err)
+			http.Error(w, "failed to encode container stop status: "+err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 

@@ -1,2 +1,4 @@
 webdist/dist/
 nawa.db*
+tmp/
+.zed/

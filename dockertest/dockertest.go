@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
@@ -48,6 +49,47 @@ func LookupImage(t *testing.T, dc *client.Client, ref string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// RunContainer creates and starts a container from imageRef running cmd, returning its ID.
+func RunContainer(t *testing.T, dc *client.Client, imageRef string, cmd []string) string {
+	t.Helper()
+	cfg := &container.Config{
+		Image: imageRef,
+		Cmd:   cmd,
+	}
+	resp, err := dc.ContainerCreate(t.Context(), cfg, nil, nil, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create container from %q: %v", imageRef, err)
+	}
+	if err := dc.ContainerStart(t.Context(), resp.ID, container.StartOptions{}); err != nil {
+		t.Fatalf("failed to start container %q: %v", resp.ID, err)
+	}
+	return resp.ID
+}
+
+func RemoveContainerFunc(t *testing.T, dc *client.Client, id string) func() {
+	t.Helper()
+	return func() {
+		ctx := context.WithoutCancel(t.Context())
+		// do not use t.Context() directly here, as it may be canceled before it runs
+		if err := dc.ContainerRemove(ctx, id, container.RemoveOptions{Force: true}); err != nil {
+			t.Logf("failed to remove container %q: %v", id, err)
+		}
+	}
+}
+
+// WaitContainerExit blocks until the container has stopped running.
+func WaitContainerExit(t *testing.T, dc *client.Client, id string) {
+	t.Helper()
+	statusCh, errCh := dc.ContainerWait(t.Context(), id, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("failed waiting for container %q: %v", id, err)
+		}
+	case <-statusCh:
+	}
 }
 
 func NewClient(t *testing.T) *client.Client {

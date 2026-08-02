@@ -1,5 +1,5 @@
 [build]
-  cmd = "go build -o /tmp/nawa ./cmd/nawa"
+  cmd = "go test -coverprofile=tmp/cover.out ./... && gcov2lcov -infile=tmp/cover.out -outfile=tmp/lconv.info && go build -o /tmp/nawa ./cmd/nawa"
   entrypoint = "/tmp/nawa"
   include_ext = ["go"]
   exclude_dir = ["web", "webdist", "vendor"]
@@ -9,3 +9,6 @@
 
 [log]
   main_only = true
+
+[misc]
+    clean_on_exit = true

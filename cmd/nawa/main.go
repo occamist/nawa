@@ -9,17 +9,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/docker/docker/client"
 	"github.com/google/uuid"
 
-	"github.com/occamist/nawa/auth"
 	"github.com/occamist/nawa/config"
 	"github.com/occamist/nawa/handlers"
+	"github.com/occamist/nawa/hoststats"
 	"github.com/occamist/nawa/ratelimiter"
+	"github.com/occamist/nawa/router"
 	"github.com/occamist/nawa/store"
 	"github.com/occamist/nawa/webdist"
 )
@@ -46,7 +46,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
 	db, err := store.Connect(ctx, "nawa.db")
 	if err != nil {
 		slog.Error("db connect failed", "err", err)
@@ -78,42 +80,54 @@ func main() {
 	}
 	defer func() { _ = dc.Close() }()
 
+	sampler := hoststats.NewSampler(cfg.DiskPath, time.Second)
+	go sampler.Run(ctx)
+
 	mux := http.NewServeMux()
 	static, err := fs.Sub(webdist.FS, "dist")
 	if err != nil {
 		slog.Error("static files has no dist directory", "err", err)
 		os.Exit(1)
 	}
-	mux.Handle("/", http.FileServer(http.FS(static)))
-
-	mux.HandleFunc("GET /healthz", handlers.Healthz())
 
 	ratelimiter := ratelimiter.New(loginRateLimit)
-	mux.HandleFunc("POST /api/v1/auth/login", handlers.Login(db, cfg, ratelimiter))
-	mux.HandleFunc("POST /api/v1/auth/logout", handlers.Logout(cfg))
 
-	protected := http.NewServeMux()
-	protected.HandleFunc("GET /api/v1/containers", handlers.ListContainers(dc))
-	protected.HandleFunc("POST /api/v1/containers/{id}/start", handlers.StartContainer(dc))
-	protected.HandleFunc("POST /api/v1/containers/{id}/stop", handlers.StopContainer(dc))
-	protected.HandleFunc("DELETE /api/v1/containers/{id}", handlers.RemoveContainer(dc))
-	protected.HandleFunc("GET /api/v1/containers/{id}/logs", handlers.StreamContainerLogs(dc))
-	protected.HandleFunc("GET /api/v1/images", handlers.ListImages(dc))
-	protected.HandleFunc("POST /api/v1/images/pull", handlers.PullImage(dc))
-	protected.HandleFunc("DELETE /api/v1/images/{id}", handlers.RemoveImage(dc))
-	protected.HandleFunc("POST /api/v1/images/prune", handlers.PruneImages(dc))
+	authMW := router.AuthMiddleware(cfg)
+	timeoutMW := router.TimeoutMiddleware(requestTimeout)
 
-	mux.Handle("/api/v1/", auth.Middleware(cfg, protected))
+	root := router.New(mux)
+	root.Handle("/", http.FileServer(http.FS(static)))
+	root.HandleFunc("GET /healthz", handlers.Healthz())
+
+	root.Route("/api/v1", func(api *router.Group) {
+		api.HandleFunc("POST /auth/login", handlers.Login(db, cfg, ratelimiter))
+		api.HandleFunc("POST /auth/logout", handlers.Logout(cfg))
+
+		api.Route("", func(protected *router.Group) {
+			protected.Use(authMW, timeoutMW)
+			protected.HandleFunc("GET /containers", handlers.ListContainers(dc))
+			protected.HandleFunc("POST /containers/{id}/start", handlers.StartContainer(dc))
+			protected.HandleFunc("POST /containers/{id}/stop", handlers.StopContainer(dc))
+			protected.HandleFunc("DELETE /containers/{id}", handlers.RemoveContainer(dc))
+			protected.HandleFunc("GET /images", handlers.ListImages(dc))
+			protected.HandleFunc("POST /images/pull", handlers.PullImage(dc))
+			protected.HandleFunc("DELETE /images/{id}", handlers.RemoveImage(dc))
+			protected.HandleFunc("POST /images/prune", handlers.PruneImages(dc))
+		})
+
+		api.Route("", func(streaming *router.Group) {
+			streaming.Use(authMW) // no timeout, connections are meant to stay open
+			streaming.HandleFunc("GET /containers/{id}/logs", handlers.StreamContainerLogs(dc))
+			streaming.HandleFunc("GET /host/stats", handlers.StreamHostStats(sampler))
+		})
+	})
 
 	addr := net.JoinHostPort(cfg.Host, cfg.Port)
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           requestTimeoutMiddleware(requestTimeout, mux),
+		Handler:           mux,
 		ReadHeaderTimeout: requestTimeout,
 	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	go func() {
 		slog.Info("nawa listening", "addr", addr)
@@ -126,26 +140,12 @@ func main() {
 	<-ctx.Done()
 
 	slog.Info("shutting down")
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	// detach from ctx's cancellation so shutdown gets its own timeout, not zero time`
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); !errors.Is(err, http.ErrServerClosed) && err != nil {
 		slog.Error("shutdown error", "err", err)
 		os.Exit(1)
 	}
 	slog.Info("shutdown complete")
-}
-
-func requestTimeoutMiddleware(timeout time.Duration, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		isStreaming := r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/containers/") && strings.HasSuffix(r.URL.Path, "/logs")
-		if isStreaming {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		ctx, cancel := context.WithTimeout(r.Context(), timeout)
-		defer cancel()
-
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
 }

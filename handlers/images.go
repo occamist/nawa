@@ -81,7 +81,9 @@ func PullImage(dc *client.Client) http.HandlerFunc {
 			http.Error(w, "failed to pull image: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer rc.Close()
+		defer func() {
+			_ = rc.Close()
+		}()
 
 		dec := json.NewDecoder(rc)
 		for {

@@ -13,7 +13,6 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/occamist/nawa/auth"
 	"github.com/occamist/nawa/config"
 	"github.com/occamist/nawa/ratelimiter"
 )
@@ -96,7 +95,7 @@ func Login(db *sql.DB, cfg config.Config, limiter *ratelimiter.Limiter) http.Han
 		}
 
 		http.SetCookie(w, &http.Cookie{ //nolint:gosec // secure is configurable
-			Name:     auth.CookieName,
+			Name:     cfg.CookieName,
 			Value:    string(signed),
 			Path:     "/",
 			HttpOnly: true,
@@ -132,7 +131,7 @@ func clientIP(r *http.Request) string {
 func Logout(cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{ //nolint:gosec // secure is configurable
-			Name:     auth.CookieName,
+			Name:     cfg.CookieName,
 			Value:    "",
 			Path:     "/",
 			HttpOnly: true,

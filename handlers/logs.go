@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"bufio"
-	"fmt"
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,8 +14,6 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
-// FIXME: Goroutine leak: stdcopy.StdCopy may block after handler returns
-// FIXME: io.Copy and stdcopy.StdCopy errors must not be ignored
 func StreamContainerLogs(dc *client.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -50,7 +48,9 @@ func StreamContainerLogs(dc *client.Client) http.HandlerFunc {
 			http.Error(w, "failed to stream logs: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer rc.Close()
+		defer func() {
+			_ = rc.Close()
+		}()
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -71,18 +71,27 @@ func StreamContainerLogs(dc *client.Client) http.HandlerFunc {
 			return
 		}
 
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+
 		pipeReader, pipeWriter := io.Pipe()
-		defer pipeWriter.Close() // unblocks pipeWriter.Write() in the goroutine if the handler exits early
 		go func() {
+			var err error
 			if info.Config.Tty {
 				// TTY containers emit a raw byte stream with no multiplexing headers.
-				io.Copy(pipeWriter, rc)
+				_, err = io.Copy(pipeWriter, rc)
 			} else {
 				// Non-TTY: demultiplex Docker's binary framed stream
 				// (8-byte header per frame: 1-byte stream type, 3-byte padding, 4-byte size).
-				stdcopy.StdCopy(pipeWriter, pipeWriter, rc)
+				_, err = stdcopy.StdCopy(pipeWriter, pipeWriter, rc)
 			}
-			pipeWriter.Close()
+			_ = pipeWriter.CloseWithError(err)
+		}()
+		go func() {
+			// Force-close rc on disconnect so the blocked copy goroutine above and the
+			// scanner below unblock immediately instead of waiting for the next log line.
+			<-ctx.Done()
+			_ = rc.Close()
 		}()
 
 		const TenMB = 10 * 1024 * 1024
@@ -90,17 +99,19 @@ func StreamContainerLogs(dc *client.Client) http.HandlerFunc {
 		scanner.Buffer(make([]byte, bufio.MaxScanTokenSize), TenMB)
 		for scanner.Scan() {
 			select {
-			case <-r.Context().Done():
+			case <-ctx.Done():
 				return
 			default:
 			}
-			if err := scanner.Err(); err != nil {
-				http.Error(w, "failed to scan container logs: "+err.Error(), http.StatusInternalServerError)
-			}
 
 			line := strings.ReplaceAll(scanner.Text(), "\r", "")
-			fmt.Fprintf(w, "data: %s\n\n", line)
-			flusher.Flush()
+			if err := writeSSEData(w, flusher, []byte(line)); err != nil {
+				slog.Error("failed to write log line", "line", line, "err", err)
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil && ctx.Err() == nil {
+			slog.Error("failed to scan container logs", "id", id, "err", err)
 		}
 	}
 }
