@@ -53,12 +53,7 @@ import AppLayout from "@layouts/AppLayout.astro";
     import { sessionFetch } from "@stores/auth";
     import { toast } from "@libs/toast";
     import { RouteV1 } from "@libs/route";
-
-    function formatSize(bytes: number): string {
-        if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
-        if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
-        return `${(bytes / 1e3).toFixed(0)} KB`;
-    }
+    import { formatBytes } from "@libs/format";
 
     function shortId(id: string): string {
         return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
@@ -139,7 +134,7 @@ import AppLayout from "@layouts/AppLayout.astro";
                 try {
                     const result = await pruneImages();
                     if (!result) return;
-                    toast.success(`Pruned unused images, reclaimed ${formatSize(result.space_reclaimed)}`);
+                    toast.success(`Pruned unused images, reclaimed ${formatBytes(result.space_reclaimed)}`);
                 } finally {
                     pruneBtn && (pruneBtn.disabled = false);
                     pruneBtn && (pruneBtn.textContent = "Prune All");
@@ -179,7 +174,7 @@ import AppLayout from "@layouts/AppLayout.astro";
           <td><span class="mono">${escHtml(repo)}</span></td>
           <td><span class="tag-pill">${escHtml(t)}</span></td>
           <td><span class="mono small">${shortId(img.id)}</span></td>
-          <td>${formatSize(img.size)}</td>
+          <td>${formatBytes(img.size)}</td>
           <td>${statusBadge}</td>
           <td>
             <button class="btn btn--action btn--action-danger remove-btn" data-id="${img.id}" data-label="${label}">Remove</button>

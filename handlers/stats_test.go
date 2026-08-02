@@ -65,7 +65,7 @@ func TestStreamSystemStats(t *testing.T) {
 	if !strings.HasPrefix(body, "data: ") {
 		t.Fatalf("want body to start with an SSE data event, got %q", body)
 	}
-	for _, field := range []string{`"cpu_percent"`, `"mem_used"`, `"mem_total"`, `"disk_used"`, `"disk_total"`} {
+	for _, field := range []string{`"cpu_percent"`, `"cpu_cores"`, `"mem_used"`, `"mem_total"`, `"disk_used"`, `"disk_total"`, `"net_sent_rate"`, `"net_recv_rate"`} {
 		if !strings.Contains(body, field) {
 			t.Errorf("want body to contain %s, got %q", field, body)
 		}

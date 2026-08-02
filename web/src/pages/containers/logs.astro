@@ -7,11 +7,7 @@ import AppLayout from "@layouts/AppLayout.astro";
         <div class="page__header">
             <a href="/containers" class="back-link">← Containers</a>
             <h1 id="logs-heading">Logs</h1>
-            <span
-                id="status-badge"
-                class="stream-status stream-status--connecting"
-                >Connecting…</span
-            >
+            <span id="status-badge" class="stream-status stream-status--connecting">Connecting…</span>
             <div class="header-right">
                 <label for="tail-select" class="tail-label">Lines</label>
                 <select id="tail-select" class="tail-select">
@@ -27,16 +23,8 @@ import AppLayout from "@layouts/AppLayout.astro";
         </div>
 
         <div class="log-viewer-wrap">
-            <div
-                class="log-viewer"
-                id="log-viewer"
-                aria-live="polite"
-                aria-label="Container log output"
-            >
-            </div>
-            <button id="scroll-btn" class="scroll-btn" style="display:none"
-                >↓ Jump to bottom</button
-            >
+            <div class="log-viewer" id="log-viewer" aria-live="polite" aria-label="Container log output"></div>
+            <button id="scroll-btn" class="scroll-btn" style="display:none">↓ Jump to bottom</button>
         </div>
     </main>
 </AppLayout>
@@ -55,12 +43,9 @@ import AppLayout from "@layouts/AppLayout.astro";
     const badge = document.getElementById("status-badge")!;
     const lineCount = document.getElementById("line-count")!;
     const scrollBtn = document.getElementById("scroll-btn")!;
-    const tailSelect = document.getElementById(
-        "tail-select",
-    ) as HTMLSelectElement;
+    const tailSelect = document.getElementById("tail-select") as HTMLSelectElement;
 
-    document.getElementById("logs-heading")!.textContent =
-        `Logs @ ${containerName}`;
+    document.getElementById("logs-heading")!.textContent = `Logs @ ${containerName}`;
 
     let autoScroll = true;
     let lineNum = 0;
@@ -73,10 +58,8 @@ import AppLayout from "@layouts/AppLayout.astro";
     let flushing = false;
 
     const ANSI_RE = /\x1b\[[0-9;]*m/g;
-    const TS_RE =
-        /^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s*/;
-    const LEVEL_RE =
-        /\b(ERROR|FATAL|CRITICAL|WARN(?:ING)?|INFO|DEBUG|TRACE|NOTICE|SUCCESS)\b/;
+    const TS_RE = /^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s*/;
+    const LEVEL_RE = /\b(ERROR|FATAL|CRITICAL|WARN(?:ING)?|INFO|DEBUG|TRACE|NOTICE|SUCCESS)\b/;
 
     const nameColor = "#2b89ff";
 
@@ -88,11 +71,8 @@ import AppLayout from "@layouts/AppLayout.astro";
         if (jsonStart !== -1) {
             try {
                 const obj = JSON.parse(text.slice(jsonStart));
-                const lvl = String(
-                    obj.level ?? obj.severity ?? obj.lvl ?? "",
-                ).toLowerCase();
-                if (["error", "fatal", "critical"].includes(lvl))
-                    return "error";
+                const lvl = String(obj.level ?? obj.severity ?? obj.lvl ?? "").toLowerCase();
+                if (["error", "fatal", "critical"].includes(lvl)) return "error";
                 if (["warn", "warning"].includes(lvl)) return "warn";
                 if (lvl === "info") return "info";
                 if (lvl === "debug") return "debug";
@@ -127,8 +107,7 @@ import AppLayout from "@layouts/AppLayout.astro";
             if (tsPrefix) rest = rest.slice(tsPrefix[0].length);
             const level = detectLevel(rest);
             const row = document.createElement("span");
-            row.className =
-                "log-viewer__line" + (level ? ` log-line--${level}` : "");
+            row.className = "log-viewer__line" + (level ? ` log-line--${level}` : "");
             const num = document.createElement("span");
             num.className = "log-line__num";
             num.textContent = String(lineNum);
@@ -147,21 +126,12 @@ import AppLayout from "@layouts/AppLayout.astro";
             if (level && rest.trimStart().indexOf("{") !== 0) {
                 const lvlMatch = LEVEL_RE.exec(rest);
                 if (lvlMatch) {
-                    if (lvlMatch.index > 0)
-                        content.appendChild(
-                            document.createTextNode(
-                                rest.slice(0, lvlMatch.index),
-                            ),
-                        );
+                    if (lvlMatch.index > 0) content.appendChild(document.createTextNode(rest.slice(0, lvlMatch.index)));
                     const pill = document.createElement("span");
                     pill.className = `log-level log-level--${level}`;
                     pill.textContent = lvlMatch[0];
                     content.appendChild(pill);
-                    content.appendChild(
-                        document.createTextNode(
-                            rest.slice(lvlMatch.index + lvlMatch[0].length),
-                        ),
-                    );
+                    content.appendChild(document.createTextNode(rest.slice(lvlMatch.index + lvlMatch[0].length)));
                 } else {
                     content.appendChild(document.createTextNode(rest));
                 }
@@ -199,8 +169,7 @@ import AppLayout from "@layouts/AppLayout.astro";
     }
 
     viewer.addEventListener("scroll", () => {
-        autoScroll =
-            viewer.scrollHeight - viewer.scrollTop - viewer.clientHeight < 40;
+        autoScroll = viewer.scrollHeight - viewer.scrollTop - viewer.clientHeight < 40;
         scrollBtn.style.display = autoScroll ? "none" : "flex";
     });
 
@@ -210,7 +179,7 @@ import AppLayout from "@layouts/AppLayout.astro";
         scrollBtn.style.display = "none";
     });
 
-    async function connect() {
+    async function connectStream() {
         es?.close();
         setStatus("Connecting…", "connecting");
 
@@ -218,9 +187,7 @@ import AppLayout from "@layouts/AppLayout.astro";
         if (!probe) return;
 
         const tail = tailSelect.value;
-        es = new EventSource(`${RouteV1.Containers}/${id}/logs?tail=${tail}`, {
-            withCredentials: true,
-        });
+        es = new EventSource(`${RouteV1.Containers}/${id}/logs?tail=${tail}`, { withCredentials: true });
 
         es.onopen = () => setStatus("Live", "live");
         es.onmessage = (e) => appendLine(e.data);
@@ -236,10 +203,10 @@ import AppLayout from "@layouts/AppLayout.astro";
         viewer.innerHTML = "";
         lineNum = 0;
         lineCount.textContent = "";
-        connect();
+        connectStream();
     });
 
-    connect();
+    connectStream();
 
     window.addEventListener("beforeunload", () => es?.close());
 </script>

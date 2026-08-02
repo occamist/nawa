@@ -28,6 +28,9 @@ func TestCollect(t *testing.T) {
 	if stats.CPUPercent < 0 || stats.CPUPercent > 100 {
 		t.Errorf("want 0 <= CPUPercent <= 100, got %f", stats.CPUPercent)
 	}
+	if stats.CPUCores <= 0 {
+		t.Errorf("want CPUCores > 0, got %d", stats.CPUCores)
+	}
 }
 
 func TestCollect_InvalidDiskPath(t *testing.T) {

@@ -8,6 +8,18 @@ import AppLayout from "@layouts/AppLayout.astro";
     <main class="page">
         <PageHeader title="Dashboard" />
 
+        <div class="section-heading">
+            Host
+            <span id="host-status-badge" class="stream-status stream-status--connecting">Connecting…</span>
+        </div>
+
+        <div class="stats-grid">
+            <StatCard label="CPU" id="stat-cpu" variant="cpu" subId="stat-cpu-sub" />
+            <StatCard label="Memory" id="stat-memory" variant="memory" subId="stat-memory-sub" />
+            <StatCard label="Disk" id="stat-disk" variant="disk" subId="stat-disk-sub" />
+            <StatCard label="Network" id="stat-network" variant="network" subId="stat-network-sub" />
+        </div>
+
         <div class="stats-grid">
             <StatCard label="Running" id="stat-running" variant="running" />
             <StatCard label="Stopped" id="stat-stopped" variant="stopped" />
@@ -39,6 +51,7 @@ import AppLayout from "@layouts/AppLayout.astro";
     import { sessionFetch } from "@stores/auth";
     import { toast } from "@libs/toast";
     import { RouteV1 } from "@libs/route";
+    import { formatBytes } from "@libs/format";
 
     function shortId(id: string) {
         return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
@@ -54,6 +67,63 @@ import AppLayout from "@layouts/AppLayout.astro";
         );
     }
 
+    function formatRate(bytesPerSec: number) {
+        return `${formatBytes(bytesPerSec)}/s`;
+    }
+
+    let es: EventSource | null = null;
+
+    function setHostStatus(label: string, mod: string) {
+        const badge = document.getElementById("host-status-badge")!;
+        badge.textContent = label;
+        badge.className = `stream-status stream-status--${mod}`;
+    }
+
+    function connectStream() {
+        es?.close();
+        setHostStatus("Connecting…", "connecting");
+
+        type HostStats = {
+            cpu_percent: number;
+            cpu_cores: number;
+            mem_used: number;
+            mem_total: number;
+            disk_used: number;
+            disk_total: number;
+            net_sent_rate: number;
+            net_recv_rate: number;
+        };
+        es = new EventSource(RouteV1.HostStats, { withCredentials: true });
+
+        es.onopen = () => setHostStatus("Live", "live");
+        es.onmessage = (e) => {
+            const stats: HostStats = JSON.parse(e.data);
+            document.getElementById("stat-cpu")!.textContent = `${stats.cpu_percent.toFixed(1)}%`;
+            document.getElementById("stat-cpu-sub")!.textContent =
+                `${stats.cpu_cores} CPU${stats.cpu_cores === 1 ? "" : "s"}`;
+
+            const memPct = (stats.mem_used / stats.mem_total) * 100;
+            document.getElementById("stat-memory")!.textContent = `${memPct.toFixed(1)}%`;
+            document.getElementById("stat-memory-sub")!.textContent =
+                `${formatBytes(stats.mem_used)} / ${formatBytes(stats.mem_total)}`;
+
+            const diskPct = (stats.disk_used / stats.disk_total) * 100;
+            document.getElementById("stat-disk")!.textContent = `${diskPct.toFixed(1)}%`;
+            document.getElementById("stat-disk-sub")!.textContent =
+                `${formatBytes(stats.disk_used)} / ${formatBytes(stats.disk_total)}`;
+
+            document.getElementById("stat-network")!.textContent = formatRate(
+                stats.net_sent_rate + stats.net_recv_rate,
+            );
+            document.getElementById("stat-network-sub")!.textContent =
+                `↑ ${formatRate(stats.net_sent_rate)}  ↓ ${formatRate(stats.net_recv_rate)}`;
+        };
+        es.onerror = () => {
+            setHostStatus("Disconnected", "disconnected");
+            es?.close();
+        };
+    }
+
     async function load() {
         try {
             const [containersResp, imagesResp] = await Promise.all([
@@ -61,6 +131,7 @@ import AppLayout from "@layouts/AppLayout.astro";
                 sessionFetch(RouteV1.Images),
             ]);
             if (!containersResp || !imagesResp) return;
+            connectStream();
 
             const containers = await containersResp.json();
             const images = await imagesResp.json();
@@ -99,6 +170,8 @@ import AppLayout from "@layouts/AppLayout.astro";
     }
 
     load();
+
+    window.addEventListener("beforeunload", () => es?.close());
 </script>
 
 <style lang="scss">
@@ -114,6 +187,9 @@ import AppLayout from "@layouts/AppLayout.astro";
     }
 
     .section-heading {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
         font-size: 11px;
         font-weight: 600;
         letter-spacing: 1.1px;
@@ -121,6 +197,32 @@ import AppLayout from "@layouts/AppLayout.astro";
         color: var(--color-text-helper);
         font-family: var(--font-brand);
         margin-bottom: var(--space-3);
+    }
+
+    .stream-status {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: none;
+        padding: 2px 7px;
+        border-radius: var(--radius-md);
+        border: 1px solid;
+
+        &--connecting {
+            color: #e8922a;
+            border-color: rgba(187, 90, 0, 0.4);
+            background: rgba(187, 90, 0, 0.1);
+        }
+        &--live {
+            color: #14c6cb;
+            border-color: rgba(20, 198, 203, 0.4);
+            background: rgba(20, 198, 203, 0.1);
+        }
+        &--disconnected {
+            color: #656a76;
+            border-color: rgba(101, 106, 118, 0.4);
+            background: rgba(101, 106, 118, 0.1);
+        }
     }
 
     .container-link {

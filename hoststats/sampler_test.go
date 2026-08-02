@@ -74,6 +74,25 @@ func TestSampler_SharedSnapshotAcrossSubscribers(t *testing.T) {
 	}
 }
 
+func TestSampler_NetworkRatesAreNonNegative(t *testing.T) {
+	s := NewSampler("/", 10*time.Millisecond)
+	go s.Run(t.Context())
+
+	s.Acquire()
+	defer s.Release()
+
+	waitForSnapshot(t, s, 2*time.Second)
+	time.Sleep(50 * time.Millisecond) // let a couple more intervals pass so a rate is actually computed
+
+	stats, err := s.Peek()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stats.NetSentRate < 0 || stats.NetRecvRate < 0 {
+		t.Errorf("want non-negative network rates, got sent=%f recv=%f", stats.NetSentRate, stats.NetRecvRate)
+	}
+}
+
 func TestSampler_RunExitsOnContextCancelWhileActive(t *testing.T) {
 	s := NewSampler("/", 5*time.Millisecond)
 	ctx, cancel := context.WithCancel(t.Context())

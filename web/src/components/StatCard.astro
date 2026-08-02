@@ -2,9 +2,10 @@
 type Props = {
     label: string;
     id: string;
-    variant: "running" | "stopped" | "total" | "images";
+    variant: "running" | "stopped" | "total" | "images" | "cpu" | "memory" | "disk" | "network";
+    subId?: string;
 };
-const { label, id, variant } = Astro.props;
+const { label, id, variant, subId } = Astro.props;
 ---
 
 <!-- Single stat tile used in the dashboard grid. Value is populated at runtime via id. -->
@@ -13,6 +14,7 @@ const { label, id, variant } = Astro.props;
     <span class={`stat-card__value stat-card__value--${variant}`} id={id}
         >—</span
     >
+    {subId && <span class="stat-card__sub" id={subId}></span>}
 </div>
 
 <style lang="scss">
@@ -50,6 +52,23 @@ const { label, id, variant } = Astro.props;
             &--images {
                 color: #a737ff;
             }
+            &--cpu {
+                color: #a737ff;
+            }
+            &--memory {
+                color: #2b89ff;
+            }
+            &--disk {
+                color: #e8922a;
+            }
+            &--network {
+                color: #14c6cb;
+            }
+        }
+
+        &__sub {
+            font-size: 12px;
+            color: var(--color-text-helper);
         }
     }
 </style>
