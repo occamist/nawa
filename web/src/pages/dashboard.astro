@@ -14,17 +14,35 @@ import AppLayout from "@layouts/AppLayout.astro";
         </div>
 
         <div class="stats-grid">
-            <StatCard label="CPU" id="stat-cpu" variant="cpu" subId="stat-cpu-sub" />
-            <StatCard label="Memory" id="stat-memory" variant="memory" subId="stat-memory-sub" />
-            <StatCard label="Disk" id="stat-disk" variant="disk" subId="stat-disk-sub" />
-            <StatCard label="Network" id="stat-network" variant="network" subId="stat-network-sub" />
+            <StatCard label="CPU" id="stat-cpu" variant="purple" subId="stat-cpu-sub" />
+            <StatCard label="Memory" id="stat-memory" variant="blue" subId="stat-memory-sub" />
+            <StatCard label="Disk" id="stat-disk" variant="orange" subId="stat-disk-sub" />
+            <StatCard label="Network" id="stat-network" variant="teal" subId="stat-network-sub" />
         </div>
 
         <div class="stats-grid">
-            <StatCard label="Running" id="stat-running" variant="running" />
-            <StatCard label="Stopped" id="stat-stopped" variant="stopped" />
-            <StatCard label="Total Containers" id="stat-total" variant="total" />
-            <StatCard label="Images" id="stat-images" variant="images" />
+            <StatCard label="Containers" id="stat-containers-total" variant="teal">
+                <span class="stat-breakdown">
+                    <span class="stat-breakdown__item stat-breakdown__item--running" id="stat-containers-running"
+                    ></span>
+                    <span class="stat-breakdown__sep">·</span>
+                    <span class="stat-breakdown__item stat-breakdown__item--stopped" id="stat-containers-stopped"
+                    ></span>
+                </span>
+            </StatCard>
+            <StatCard label="Images" id="stat-images-total" variant="orange">
+                <span class="stat-breakdown">
+                    <span class="stat-breakdown__item stat-breakdown__item--in-use" id="stat-images-inuse"></span>
+                    <span class="stat-breakdown__sep">·</span>
+                    <span class="stat-breakdown__item stat-breakdown__item--unused" id="stat-images-unused"></span>
+                </span>
+            </StatCard>
+            <StatCard label="Volumes" id="stat-volumes-total" variant="blue">
+                <span class="stat-breakdown stat-breakdown--placeholder">Coming soon</span>
+            </StatCard>
+            <StatCard label="Networks" id="stat-networks-total" variant="purple">
+                <span class="stat-breakdown stat-breakdown--placeholder">Coming soon</span>
+            </StatCard>
         </div>
 
         <div class="section-heading">Running containers</div>
@@ -55,6 +73,10 @@ import AppLayout from "@layouts/AppLayout.astro";
 
     function shortId(id: string) {
         return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
+    }
+
+    function stripSha256(id: string) {
+        return id.startsWith("sha256:") ? id.slice(7) : id;
     }
 
     function formatPorts(ports: any[]) {
@@ -139,10 +161,16 @@ import AppLayout from "@layouts/AppLayout.astro";
             const running = containers.filter((c: any) => c.state === "running");
             const stopped = containers.filter((c: any) => c.state !== "running");
 
-            document.getElementById("stat-running")!.textContent = String(running.length);
-            document.getElementById("stat-stopped")!.textContent = String(stopped.length);
-            document.getElementById("stat-total")!.textContent = String(containers.length);
-            document.getElementById("stat-images")!.textContent = String(images.length);
+            document.getElementById("stat-containers-total")!.textContent = String(containers.length);
+            document.getElementById("stat-containers-running")!.textContent = `${running.length} running`;
+            document.getElementById("stat-containers-stopped")!.textContent = `${stopped.length} stopped`;
+
+            const usedImageIDs = new Set(containers.map((c: any) => stripSha256(c.image_id)));
+            const inUseImages = images.filter((img: any) => usedImageIDs.has(stripSha256(img.id)));
+
+            document.getElementById("stat-images-total")!.textContent = String(images.length);
+            document.getElementById("stat-images-inuse")!.textContent = `${inUseImages.length} in use`;
+            document.getElementById("stat-images-unused")!.textContent = `${images.length - inUseImages.length} unused`;
 
             const tbody = document.getElementById("running-tbody")!;
             if (running.length === 0) {
@@ -251,5 +279,28 @@ import AppLayout from "@layouts/AppLayout.astro";
         text-align: center;
         color: var(--color-text-helper);
         padding: 32px 16px !important;
+    }
+
+    .stat-breakdown {
+        font-size: 12px;
+        color: #3ddc84;
+
+        &--placeholder {
+            color: #656a76;
+            font-style: italic;
+        }
+
+        &__item {
+            font-weight: 600;
+
+            &--stopped,
+            &--unused {
+                color: #656a76;
+            }
+        }
+
+        &__sep {
+            margin: 0 4px;
+        }
     }
 </style>

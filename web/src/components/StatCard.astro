@@ -2,7 +2,7 @@
 type Props = {
     label: string;
     id: string;
-    variant: "running" | "stopped" | "total" | "images" | "cpu" | "memory" | "disk" | "network";
+    variant: "teal" | "orange" | "blue" | "purple";
     subId?: string;
 };
 const { label, id, variant, subId } = Astro.props;
@@ -15,6 +15,7 @@ const { label, id, variant, subId } = Astro.props;
         >—</span
     >
     {subId && <span class="stat-card__sub" id={subId}></span>}
+    <slot />
 </div>
 
 <style lang="scss">
@@ -40,29 +41,17 @@ const { label, id, variant, subId } = Astro.props;
             line-height: 1;
             color: var(--color-text);
 
-            &--running {
+            &--teal {
                 color: #14c6cb;
             }
-            &--stopped {
+            &--orange {
                 color: #e8922a;
             }
-            &--total {
+            &--blue {
                 color: #2b89ff;
             }
-            &--images {
+            &--purple {
                 color: #a737ff;
-            }
-            &--cpu {
-                color: #a737ff;
-            }
-            &--memory {
-                color: #2b89ff;
-            }
-            &--disk {
-                color: #e8922a;
-            }
-            &--network {
-                color: #14c6cb;
             }
         }
 
