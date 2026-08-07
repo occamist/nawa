@@ -15,6 +15,7 @@ import (
 
 	"github.com/occamist/nawa/config"
 	"github.com/occamist/nawa/ratelimiter"
+	"github.com/occamist/nawa/store"
 )
 
 const (
@@ -30,7 +31,7 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
-func Login(db *sql.DB, cfg config.Config, limiter *ratelimiter.Limiter) http.HandlerFunc {
+func Login(s *store.Store, cfg config.Config, limiter *ratelimiter.Limiter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const oneMB = 1 << 20
 		var req loginRequest
@@ -53,7 +54,7 @@ func Login(db *sql.DB, cfg config.Config, limiter *ratelimiter.Limiter) http.Han
 		}
 
 		var hash string
-		err := db.QueryRowContext(r.Context(),
+		err := s.QueryRowContext(r.Context(),
 			"SELECT password_hash FROM users WHERE username = ?", req.Username,
 		).Scan(&hash)
 		userExists := true
