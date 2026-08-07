@@ -38,10 +38,18 @@ import AppLayout from "@layouts/AppLayout.astro";
                 </span>
             </StatCard>
             <StatCard label="Volumes" id="stat-volumes-total" variant="blue">
-                <span class="stat-breakdown stat-breakdown--placeholder">Coming soon</span>
+                <span class="stat-breakdown">
+                    <span class="stat-breakdown__item stat-breakdown__item--in-use" id="stat-volumes-inuse"></span>
+                    <span class="stat-breakdown__sep">·</span>
+                    <span class="stat-breakdown__item stat-breakdown__item--unused" id="stat-volumes-unused"></span>
+                </span>
             </StatCard>
             <StatCard label="Networks" id="stat-networks-total" variant="purple">
-                <span class="stat-breakdown stat-breakdown--placeholder">Coming soon</span>
+                <span class="stat-breakdown">
+                    <span class="stat-breakdown__item stat-breakdown__item--in-use" id="stat-networks-inuse"></span>
+                    <span class="stat-breakdown__sep">·</span>
+                    <span class="stat-breakdown__item stat-breakdown__item--unused" id="stat-networks-unused"></span>
+                </span>
             </StatCard>
         </div>
 
@@ -73,10 +81,6 @@ import AppLayout from "@layouts/AppLayout.astro";
 
     function shortId(id: string) {
         return id.startsWith("sha256:") ? id.slice(7, 19) : id.slice(0, 12);
-    }
-
-    function stripSha256(id: string) {
-        return id.startsWith("sha256:") ? id.slice(7) : id;
     }
 
     function formatPorts(ports: any[]) {
@@ -146,32 +150,42 @@ import AppLayout from "@layouts/AppLayout.astro";
         };
     }
 
+    type Dashboard = {
+        containers: { total: number; running: number; stopped: number };
+        images: { total: number; in_use: number; unused: number };
+        volumes: { total: number; in_use: number; unused: number };
+        networks: { total: number; in_use: number; unused: number };
+    };
+
     async function load() {
         try {
-            const [containersResp, imagesResp] = await Promise.all([
+            const [containersResp, dashboardResp] = await Promise.all([
                 sessionFetch(RouteV1.Containers),
-                sessionFetch(RouteV1.Images),
+                sessionFetch(RouteV1.Dashboard),
             ]);
-            if (!containersResp || !imagesResp) return;
+            if (!containersResp || !dashboardResp) return;
             connectStream();
 
             const containers = await containersResp.json();
-            const images = await imagesResp.json();
+            const d: Dashboard = await dashboardResp.json();
+
+            document.getElementById("stat-containers-total")!.textContent = String(d.containers.total);
+            document.getElementById("stat-containers-running")!.textContent = `${d.containers.running} running`;
+            document.getElementById("stat-containers-stopped")!.textContent = `${d.containers.stopped} stopped`;
+
+            document.getElementById("stat-images-total")!.textContent = String(d.images.total);
+            document.getElementById("stat-images-inuse")!.textContent = `${d.images.in_use} in use`;
+            document.getElementById("stat-images-unused")!.textContent = `${d.images.unused} unused`;
+
+            document.getElementById("stat-volumes-total")!.textContent = String(d.volumes.total);
+            document.getElementById("stat-volumes-inuse")!.textContent = `${d.volumes.in_use} in use`;
+            document.getElementById("stat-volumes-unused")!.textContent = `${d.volumes.unused} unused`;
+
+            document.getElementById("stat-networks-total")!.textContent = String(d.networks.total);
+            document.getElementById("stat-networks-inuse")!.textContent = `${d.networks.in_use} in use`;
+            document.getElementById("stat-networks-unused")!.textContent = `${d.networks.unused} unused`;
 
             const running = containers.filter((c: any) => c.state === "running");
-            const stopped = containers.filter((c: any) => c.state !== "running");
-
-            document.getElementById("stat-containers-total")!.textContent = String(containers.length);
-            document.getElementById("stat-containers-running")!.textContent = `${running.length} running`;
-            document.getElementById("stat-containers-stopped")!.textContent = `${stopped.length} stopped`;
-
-            const usedImageIDs = new Set(containers.map((c: any) => stripSha256(c.image_id)));
-            const inUseImages = images.filter((img: any) => usedImageIDs.has(stripSha256(img.id)));
-
-            document.getElementById("stat-images-total")!.textContent = String(images.length);
-            document.getElementById("stat-images-inuse")!.textContent = `${inUseImages.length} in use`;
-            document.getElementById("stat-images-unused")!.textContent = `${images.length - inUseImages.length} unused`;
-
             const tbody = document.getElementById("running-tbody")!;
             if (running.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="loading-cell">No containers running.</td></tr>';
@@ -284,11 +298,6 @@ import AppLayout from "@layouts/AppLayout.astro";
     .stat-breakdown {
         font-size: 12px;
         color: #3ddc84;
-
-        &--placeholder {
-            color: #656a76;
-            font-style: italic;
-        }
 
         &__item {
             font-weight: 600;

@@ -106,6 +106,7 @@ func run() error {
 
 		api.Route("", func(protected *router.Group) {
 			protected.Use(authMW, timeoutMW)
+			protected.HandleFunc("GET /dashboard", handlers.Dashboard(dc))
 			protected.HandleFunc("GET /containers", handlers.ListContainers(dc))
 			protected.HandleFunc("POST /containers/{id}/start", handlers.StartContainer(dc))
 			protected.HandleFunc("POST /containers/{id}/stop", handlers.StopContainer(dc))
