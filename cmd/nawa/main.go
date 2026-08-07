@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/google/uuid"
-
 	"github.com/occamist/nawa/config"
 	"github.com/occamist/nawa/handlers"
 	"github.com/occamist/nawa/hoststats"
@@ -38,28 +38,32 @@ var loginRateLimit = ratelimiter.Config{
 }
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("run failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("config load failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("config load failed: %v", err)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	db, err := store.Connect(ctx, "nawa.db")
+	s, err := store.New(ctx, "nawa.db")
 	if err != nil {
-		slog.Error("db connect failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("db connect failed: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	defer func() { _ = s.Close() }()
 
-	exists, err := store.UserExists(ctx, db, cfg.AdminUsername)
+	exists, err := s.UserExists(ctx, cfg.AdminUsername)
 	if err != nil {
-		slog.Error("check admin user failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("check admin user failed: %v", err)
 	}
 	if !exists {
 		adminPassword := cfg.AdminPassword
@@ -67,16 +71,14 @@ func main() {
 			adminPassword = uuid.NewString()
 			slog.Info("generated admin credentials — SAVE THESE, SHOWN ONLY ONCE", "username", cfg.AdminUsername, "password", adminPassword)
 		}
-		if err := store.Seed(ctx, db, cfg.AdminUsername, adminPassword); err != nil {
-			slog.Error("seed failed", "err", err)
-			os.Exit(1)
+		if err := s.Seed(ctx, cfg.AdminUsername, adminPassword); err != nil {
+			return fmt.Errorf("seed failed: %v", err)
 		}
 	}
 
 	dc, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		slog.Error("docker client failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("docker client failed: %v", err)
 	}
 	defer func() { _ = dc.Close() }()
 
@@ -86,8 +88,7 @@ func main() {
 	mux := http.NewServeMux()
 	static, err := fs.Sub(webdist.FS, "dist")
 	if err != nil {
-		slog.Error("static files has no dist directory", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("static files has no dist directory: %v", err)
 	}
 
 	ratelimiter := ratelimiter.New(loginRateLimit)
@@ -100,7 +101,7 @@ func main() {
 	root.HandleFunc("GET /healthz", handlers.Healthz())
 
 	root.Route("/api/v1", func(api *router.Group) {
-		api.HandleFunc("POST /auth/login", handlers.Login(db, cfg, ratelimiter))
+		api.HandleFunc("POST /auth/login", handlers.Login(s, cfg, ratelimiter))
 		api.HandleFunc("POST /auth/logout", handlers.Logout(cfg))
 
 		api.Route("", func(protected *router.Group) {
@@ -116,7 +117,7 @@ func main() {
 		})
 
 		api.Route("", func(streaming *router.Group) {
-			streaming.Use(authMW) // no timeout, connections are meant to stay open
+			streaming.Use(authMW) // no timeout middleware, connections are meant to stay open
 			streaming.HandleFunc("GET /containers/{id}/logs", handlers.StreamContainerLogs(dc))
 			streaming.HandleFunc("GET /host/stats", handlers.StreamHostStats(sampler))
 		})
@@ -132,20 +133,19 @@ func main() {
 	go func() {
 		slog.Info("nawa listening", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "err", err)
-			os.Exit(1)
+			slog.Error("server failed to listen", "err", err)
 		}
 	}()
 
 	<-ctx.Done()
 
-	slog.Info("shutting down")
-	// detach from ctx's cancellation so shutdown gets its own timeout, not zero time`
+	slog.Info("gracefully shutting down")
+	// detach from ctx's cancellation so shutdown gets its own timeout, not zero time
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); !errors.Is(err, http.ErrServerClosed) && err != nil {
-		slog.Error("shutdown error", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("server failed to shutdown: %v", err)
 	}
-	slog.Info("shutdown complete")
+	slog.Info("graceful shutdown complete")
+	return nil
 }

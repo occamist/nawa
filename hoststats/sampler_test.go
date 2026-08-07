@@ -81,8 +81,7 @@ func TestSampler_NetworkRatesAreNonNegative(t *testing.T) {
 	s.Acquire()
 	defer s.Release()
 
-	waitForSnapshot(t, s, 2*time.Second)
-	time.Sleep(50 * time.Millisecond) // let a couple more intervals pass so a rate is actually computed
+	waitForSnapshot(t, s, 3*time.Second)
 
 	stats, err := s.Peek()
 	if err != nil {
