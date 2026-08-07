@@ -24,11 +24,12 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	db.SetMaxOpenConns(1)
+
 	s := &Store{DB: db}
 	if err := s.apply(ctx); err != nil {
 		return nil, fmt.Errorf("apply db: %w", err)
 	}
-	return &Store{DB: db}, nil
+	return s, nil
 }
 
 func (s *Store) apply(ctx context.Context) error {
