@@ -1,5 +1,7 @@
 # Nawa (นาวา)
 
+[![License](https://img.shields.io/github/license/occamist/laverna)](https://github.com/occamist/laverna/blob/main/LICENSE)
+
 A self-hosted container management for single host machines, served as a single binary. Nawa means a ship or a vessel in Thai. 
 
 I have built it solely for personal uses. Inspired by the designs of dockge (minimalist) & arcane (pragmatic). I just wanted the best of both worlds for myself.
