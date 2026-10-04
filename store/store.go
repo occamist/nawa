@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"uuid"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
@@ -57,7 +57,7 @@ func (s *Store) Seed(ctx context.Context, username, password string) error {
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}
-	_, err = s.ExecContext(ctx, "INSERT OR IGNORE INTO users (id, username, password_hash) VALUES (?, ?, ?)", uuid.NewString(), username, string(hash))
+	_, err = s.ExecContext(ctx, "INSERT OR IGNORE INTO users (id, username, password_hash) VALUES (?, ?, ?)", uuid.New().String(), username, string(hash))
 	if err != nil {
 		return fmt.Errorf("seed user: %w", err)
 	}

@@ -12,9 +12,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"uuid"
 
 	"github.com/docker/docker/client"
-	"github.com/google/uuid"
 	"github.com/occamist/nawa/config"
 	"github.com/occamist/nawa/handlers"
 	"github.com/occamist/nawa/hoststats"
@@ -68,7 +68,7 @@ func run() error {
 	if !exists {
 		adminPassword := cfg.AdminPassword
 		if adminPassword == "" {
-			adminPassword = uuid.NewString()
+			adminPassword = uuid.New().String()
 			slog.Info("generated admin credentials — SAVE THESE, SHOWN ONLY ONCE", "username", cfg.AdminUsername, "password", adminPassword)
 		}
 		if err := s.Seed(ctx, cfg.AdminUsername, adminPassword); err != nil {
