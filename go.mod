@@ -1,12 +1,11 @@
 module github.com/occamist/nawa
 
-go 1.26.1
+go 1.27
 
 require (
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/go-cmp v0.7.0
-	github.com/google/uuid v1.6.0
 	github.com/lestrrat-go/jwx/v3 v3.0.13
 	github.com/shirou/gopsutil/v4 v4.26.6
 	golang.org/x/crypto v0.49.0
@@ -30,6 +29,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
 	github.com/lestrrat-go/dsig v1.0.0 // indirect
 	github.com/lestrrat-go/dsig-secp256k1 v1.0.0 // indirect
