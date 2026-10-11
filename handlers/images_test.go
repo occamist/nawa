@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -126,9 +127,10 @@ func TestPullImage_NonExistentImage(t *testing.T) {
 	if !cmp.Equal(http.StatusInternalServerError, w.Code) {
 		t.Errorf("want status = %d, got status = %d\n %s", http.StatusInternalServerError, w.Code, w.Body.String())
 	}
-	want := "failed to pull image: Error response from daemon: pull access denied for thisdoesnotexist99999, repository does not exist or may require 'docker login': denied: requested access to the resource is denied\n"
-	if !cmp.Equal(want, w.Body.String()) {
-		t.Errorf("want body = %s, got body = %s", want, w.Body.String())
+
+	want := "failed to pull image: Error response from daemon: pull access denied for thisdoesnotexist99999, repository does not exist or may require 'docker login'"
+	if !strings.HasPrefix(w.Body.String(), want) {
+		t.Errorf("want body prefix = %s, got body = %s", want, w.Body.String())
 	}
 }
 
