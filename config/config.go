@@ -13,6 +13,9 @@ type Config struct {
 	Port          string `env:"PORT" envDefault:"5555"`
 	DiskPath      string `env:"DISK_PATH" envDefault:"/"`
 	CookieName    string `env:"COOKIE_NAME" envDefault:"nawa_token"`
+
+	// Dev mode instead of serving the built production web-dist.
+	Dev bool `env:"NAWA_DEV"`
 }
 
 func Load() (Config, error) {

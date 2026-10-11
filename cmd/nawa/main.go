@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -21,7 +20,6 @@ import (
 	"github.com/occamist/nawa/ratelimiter"
 	"github.com/occamist/nawa/router"
 	"github.com/occamist/nawa/store"
-	"github.com/occamist/nawa/webdist"
 )
 
 const (
@@ -86,9 +84,9 @@ func run() error {
 	go sampler.Run(ctx)
 
 	mux := http.NewServeMux()
-	static, err := fs.Sub(webdist.FS, "dist")
+	frontend, err := handlers.Frontend(cfg)
 	if err != nil {
-		return fmt.Errorf("static files has no dist directory: %v", err)
+		return fmt.Errorf("frontend handler failed: %v", err)
 	}
 
 	ratelimiter := ratelimiter.New(loginRateLimit)
@@ -97,7 +95,7 @@ func run() error {
 	timeoutMW := router.TimeoutMiddleware(requestTimeout)
 
 	root := router.New(mux)
-	root.Handle("/", http.FileServer(http.FS(static)))
+	root.Handle("/", frontend)
 	root.HandleFunc("GET /healthz", handlers.Healthz())
 
 	root.Route("/api/v1", func(api *router.Group) {

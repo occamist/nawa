@@ -40,12 +40,8 @@ On first run, if no admin password is set, one is generated and printed to the t
 
 ## Development
 
-Run the backend and frontend dev server separately for live file changes:
+Start the frontend dev server and the backend together, then open `http://localhost:4321`:
 
 ```sh
-# Frontend @ localhost:4321
-cd web && pnpm run dev
-
-# Backend @ localhost:5555
-JWT_SECRET=dev air
+make dev
 ```

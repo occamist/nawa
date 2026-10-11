@@ -1,4 +1,5 @@
-webdist/dist/
+webdist/dist/*
+!webdist/dist/.gitkeep
 nawa.db*
 tmp/
 .zed/
