@@ -1,6 +1,6 @@
 # Nawa (นาวา)
 
-[![License](https://img.shields.io/github/license/occamist/laverna)](https://github.com/occamist/laverna/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/occamist/nawa)](https://github.com/occamist/laverna/blob/main/nawa)
 
 A self-hosted container management for single host machines, served as a single binary. Nawa means a ship or a vessel in Thai. 
 
@@ -28,19 +28,15 @@ All configuration is via environment variables.
 
 ## Getting Started
 
-If you have the binary built, it has both frontend & backend in it.
+If you have the binary, below will run on localhost:5555. On first run, if no admin password is set, one is generated and printed to the terminal only ONCE!
 
 ```sh
 JWT_SECRET=your-secret nawa
 ```
 
-Then open `http://localhost:5555`.
-
-On first run, if no admin password is set, one is generated and printed to the terminal, please save it, it is shown only once.
-
 ## Development
 
-Start the frontend dev server and the backend together, then open `http://localhost:4321`:
+You can start the dev servers together on localhost:4321
 
 ```sh
 make dev
